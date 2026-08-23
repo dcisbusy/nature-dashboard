@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#161d24">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>Field Notes — Nature Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap');
+
+:root{
+  --ink:#161d24;
+  --ink-soft:#232d38;
+  --moss:#42604a;
+  --lichen:#9ab596;
+  --bone:#eae3d2;
+  --amber:#e2a13d;
+  --dusk:#6c5a95;
+  --line:rgba(234,227,210,0.14);
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  background:var(--ink);
+  color:var(--bone);
+  font-family:'Inter',sans-serif;
+  min-height:100vh;
+  padding:0 0 3rem;
+}
+.wrap{max-width:640px; margin:0 auto; padding:0 1.1rem;}
+
+/* header */
+header{padding:1.6rem 0 1rem;}
+.eyebrow{
+  font-family:'Space Mono',monospace;
+  font-size:0.68rem;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--lichen);
+  margin-bottom:0.35rem;
+}
+h1{
+  font-family:'Fraunces',serif;
+  font-weight:500;
+  font-size:1.9rem;
+  line-height:1.15;
+}
+.locline{
+  font-family:'Space Mono',monospace;
+  font-size:0.78rem;
+  color:var(--lichen);
+  margin-top:0.4rem;
+}
+
+/* sky band — signature element */
+.skyband{
+  position:relative;
+  height:92px;
+  border-radius:14px;
+  margin:1.2rem 0 0.3rem;
+  overflow:hidden;
+  border:1px solid var(--line);
+}
+.skyband .arc{
+  position:absolute; inset:0;
+}
+.marker{
+  position:absolute;
+  top:50%;
+  width:14px; height:14px;
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+  box-shadow:0 0 14px 3px rgba(255,255,255,0.35);
+  transition:left 0.6s ease;
+}
+.skyband .label{
+  position:absolute;
+  bottom:6px; left:10px;
+  font-family:'Space Mono',monospace;
+  font-size:0.66rem;
+  letter-spacing:0.06em;
+  color:rgba(234,227,210,0.85);
+  text-transform:uppercase;
+}
+.skyband .label.right{left:auto; right:10px;}
+
+/* cards */
+.grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0.7rem;
+  margin-top:1.1rem;
+}
+.card{
+  background:var(--ink-soft);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:0.85rem 0.9rem;
+}
+.card .k{
+  font-family:'Space Mono',monospace;
+  font-size:0.63rem;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--lichen);
+  margin-bottom:0.3rem;
+}
+.card .v{
+  font-family:'Fraunces',serif;
+  font-size:1.15rem;
+  font-weight:500;
+  line-height:1.25;
+}
+.card .sub{
+  font-size:0.75rem;
+  color:rgba(234,227,210,0.65);
+  margin-top:0.25rem;
+  line-height:1.4;
+}
+.card.wide{grid-column:1 / -1;}
+
+.green-row{display:flex; align-items:center; gap:0.6rem; margin-top:0.15rem;}
+.mini-btn{
+  margin-top:0.6rem;
+  background:rgba(234,227,210,0.1);
+  border:1px solid var(--line);
+  color:var(--lichen);
+  font-family:'Inter',sans-serif;
+  font-size:0.68rem;
+  padding:0.32rem 0.6rem;
+  border-radius:6px;
+  cursor:pointer;
+}
+.species-row{
+  display:flex;
+  align-items:center;
+  gap:0.75rem;
+  text-decoration:none;
+  color:inherit;
+  margin-top:0.6rem;
+}
+.species-row:first-child{margin-top:0.15rem;}
+.tabbar{
+  display:flex;
+  gap:0.4rem;
+  margin:0.5rem 0 0.7rem;
+  flex-wrap:wrap;
+}
+.tab-btn{
+  background:rgba(234,227,210,0.06);
+  border:1px solid var(--line);
+  color:rgba(234,227,210,0.65);
+  font-family:'Inter',sans-serif;
+  font-size:0.72rem;
+  padding:0.35rem 0.65rem;
+  border-radius:7px;
+  cursor:pointer;
+}
+.tab-btn.active{
+  background:var(--moss);
+  color:var(--bone);
+  border-color:transparent;
+}
+.chip-row{
+  display:flex;
+  gap:0.6rem;
+  overflow-x:auto;
+  padding-bottom:0.2rem;
+}
+.chip{
+  flex:0 0 auto;
+  width:92px;
+  text-decoration:none;
+  color:inherit;
+}
+.chip img, .chip .species-thumb{
+  width:92px; height:92px;
+  border-radius:10px;
+  object-fit:cover;
+  display:block;
+  background:rgba(234,227,210,0.06);
+}
+.chip .chip-name{
+  font-size:0.72rem;
+  margin-top:0.35rem;
+  line-height:1.25;
+}
+.chip .chip-count{
+  font-size:0.65rem;
+  color:rgba(234,227,210,0.55);
+}
+.species-thumb{
+  width:64px; height:64px;
+  border-radius:10px;
+  object-fit:cover;
+  flex-shrink:0;
+  background:rgba(234,227,210,0.06);
+}
+#speciesLink:hover .v{ text-decoration:underline; }
+
+/* activity */
+.activity{
+  margin-top:1.2rem;
+  background:linear-gradient(160deg, var(--moss), #33472f);
+  border-radius:16px;
+  padding:1.3rem 1.15rem 1.15rem;
+  border:1px solid rgba(234,227,210,0.18);
+}
+.activity .eyebrow{color:var(--bone); opacity:0.8;}
+.activity h2{
+  font-family:'Fraunces',serif;
+  font-weight:600;
+  font-size:1.35rem;
+  line-height:1.25;
+  margin:0.3rem 0 0.5rem;
+}
+.activity p{font-size:0.88rem; line-height:1.5; color:rgba(234,227,210,0.92);}
+.activity-btn{
+  margin-top:0.9rem;
+  background:rgba(234,227,210,0.12);
+  border:1px solid rgba(234,227,210,0.3);
+  color:var(--bone);
+  font-family:'Inter',sans-serif;
+  font-size:0.82rem;
+  font-weight:500;
+  padding:0.55rem 0.95rem;
+  border-radius:8px;
+  cursor:pointer;
+}
+.activity-btn:hover{background:rgba(234,227,210,0.2);}
+.activity-btn:focus-visible{outline:2px solid var(--amber); outline-offset:2px;}
+
+/* status / fallback */
+.status{
+  font-size:0.82rem;
+  color:rgba(234,227,210,0.6);
+  padding:1rem 0;
+}
+.locform{
+  display:flex; gap:0.5rem; margin-top:0.7rem; flex-wrap:wrap;
+}
+.locform input{
+  background:var(--ink-soft);
+  border:1px solid var(--line);
+  color:var(--bone);
+  padding:0.5rem 0.6rem;
+  border-radius:8px;
+  font-family:'Space Mono',monospace;
+  font-size:0.8rem;
+  width:110px;
+}
+.locform button{
+  background:var(--moss);
+  border:none;
+  color:var(--bone);
+  padding:0.5rem 0.9rem;
+  border-radius:8px;
+  font-size:0.82rem;
+  cursor:pointer;
+}
+footer{
+  margin-top:1.4rem;
+  font-family:'Space Mono',monospace;
+  font-size:0.62rem;
+  color:rgba(234,227,210,0.4);
+  line-height:1.6;
+}
+@media (max-width:420px){
+  .grid{grid-template-columns:1fr;}
+  h1{font-size:1.6rem;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow" id="dateLine">—</div>
+    <h1>Field Notes</h1>
+    <div class="locline" id="locLine">Locating you…</div>
+    <button id="installBtn" style="display:none; margin-top:0.7rem; background:var(--moss); border:none; color:var(--bone); padding:0.5rem 0.9rem; border-radius:8px; font-family:'Inter',sans-serif; font-size:0.8rem; cursor:pointer;">Add to Home Screen</button>
+  </header>
+
+  <div class="status">
+    Using IP-based location? It's only city-level accurate. For a real nearby green space, enter exact coordinates (from your phone's Maps app, tap-and-hold your pin):
+    <div class="locform">
+      <input id="latIn" placeholder="lat" />
+      <input id="lngIn" placeholder="lng" />
+      <button id="manualGo">Use this</button>
+    </div>
+  </div>
+
+  <div class="skyband" id="skyband">
+    <div class="arc" id="skyArc"></div>
+    <div class="marker" id="skyMarker"></div>
+    <div class="label" id="skyLabelLeft">—</div>
+    <div class="label right" id="skyLabelRight">—</div>
+  </div>
+
+  <div class="grid" id="cardGrid">
+    <div class="card"><div class="k">Sky</div><div class="v" id="weatherV">loading…</div><div class="sub" id="weatherSub"></div></div>
+    <div class="card"><div class="k">Next hour</div><div class="v" id="hourlyV">loading…</div><div class="sub" id="hourlySub"></div></div>
+    <div class="card"><div class="k">Light</div><div class="v" id="lightV">loading…</div><div class="sub" id="lightSub"></div></div>
+    <div class="card"><div class="k">Moon</div><div class="v" id="moonV">loading…</div><div class="sub" id="moonSub"></div></div>
+    <div class="card" id="greenCard">
+      <div class="k">Nearest green</div>
+      <div class="green-row">
+        <svg id="compassSvg" width="46" height="46" viewBox="0 0 46 46">
+          <circle cx="23" cy="23" r="21" fill="none" stroke="rgba(234,227,210,0.25)" stroke-width="1.5"/>
+          <text x="23" y="8" text-anchor="middle" font-size="7" fill="rgba(234,227,210,0.55)" font-family="Space Mono, monospace">N</text>
+          <g id="compassArrowGroup" transform="rotate(0 23 23)">
+            <polygon points="23,9 27,25 23,21 19,25" fill="var(--amber)"/>
+          </g>
+        </svg>
+        <div>
+          <div class="v" id="greenV">loading…</div>
+          <div class="sub" id="greenSub"></div>
+        </div>
+      </div>
+      <button id="compassToggle" class="mini-btn" style="display:none;">Enable live compass</button>
+    </div>
+    <div class="card wide" id="speciesCard">
+      <div class="k">Spotted nearby <span style="opacity:0.6; font-weight:normal;">(via iNaturalist)</span></div>
+      <div class="tabbar">
+        <button class="tab-btn active" data-tab="recent">Recent</button>
+        <button class="tab-btn" data-tab="common">Commonly seen (2km)</button>
+        <button class="tab-btn" data-tab="seasonal">Seasonal (5km)</button>
+      </div>
+      <div id="speciesList" class="tab-panel"></div>
+      <div id="commonList" class="tab-panel" style="display:none;"></div>
+      <div id="seasonalList" class="tab-panel" style="display:none;"></div>
+    </div>
+    <div class="card wide" id="treeCard">
+      <div class="k">Tree of the day</div>
+      <div class="species-row">
+        <img id="treeImg" class="species-thumb" style="display:none;" alt="">
+        <div>
+          <div class="v" id="treeV">loading…</div>
+          <div class="sub" id="treeSub"></div>
+          <div class="sub" id="treeNote" style="margin-top:0.4rem;"></div>
+        </div>
+      </div>
+      <a id="treeLink" href="#" target="_blank" rel="noopener" class="mini-btn" style="display:inline-block; margin-top:0.7rem; text-decoration:none;">More on Woodland Trust</a>
+    </div>
+    <div class="card wide" id="birdCard">
+      <div class="k">Bird of the day</div>
+      <div class="species-row">
+        <img id="birdImg" class="species-thumb" style="display:none;" alt="">
+        <div>
+          <div class="v" id="birdV">loading…</div>
+          <div class="sub" id="birdSub"></div>
+          <div class="sub" id="birdNote" style="margin-top:0.4rem;"></div>
+        </div>
+      </div>
+      <div style="margin-top:0.7rem; display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+        <a id="birdLink" href="#" target="_blank" rel="noopener" class="mini-btn" style="text-decoration:none;">More on RSPB</a>
+        <audio id="birdAudio" controls style="display:none; height:32px; max-width:200px;"></audio>
+        <span id="birdAudioMsg" class="sub" style="display:none;">No recording found nearby</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="activity">
+    <div class="eyebrow">Right now, right here</div>
+    <h2 id="actTitle">Gathering conditions…</h2>
+    <p id="actBody">Once your data's in, a suggestion tailored to this exact moment will appear here.</p>
+    <button class="activity-btn" id="reroll">Suggest something else</button>
+  </div>
+
+  <footer>
+    Data: Open-Meteo · OpenStreetMap (Overpass) · GBIF · BigDataCloud reverse geocoding.<br>
+    Nothing here is stored — everything refetches on load.
+  </footer>
+</div>
+
+<script>
+const state = { lat:null, lng:null, weather:null, sunrise:null, sunset:null, place:null, green:null, species:null, moon:null };
+
+function fmtTime(d){ return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+
+document.getElementById('dateLine').textContent = new Date().toLocaleDateString([], {weekday:'long', month:'long', day:'numeric'});
+
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371000, toRad=x=>x*Math.PI/180;
+  const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
+  const a=Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function bearingTo(lat1,lon1,lat2,lon2){
+  const toRad=x=>x*Math.PI/180, toDeg=x=>x*180/Math.PI;
+  const y = Math.sin(toRad(lon2-lon1)) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1))*Math.sin(toRad(lat2)) - Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(toRad(lon2-lon1));
+  return (toDeg(Math.atan2(y,x)) + 360) % 360;
+}
+
+function cardinalFromBearing(deg){
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+
+let targetBearing = null;
+let deviceHeading = 0;
+let compassActive = false;
+
+function updateCompassArrow(){
+  const group = document.getElementById('compassArrowGroup');
+  if(!group || targetBearing === null) return;
+  const rotation = compassActive ? (targetBearing - deviceHeading + 360) % 360 : targetBearing;
+  group.setAttribute('transform', `rotate(${rotation} 23 23)`);
+}
+
+function handleOrientation(e){
+  let heading = null;
+  if(typeof e.webkitCompassHeading === 'number'){
+    heading = e.webkitCompassHeading; // iOS: already true-north relative
+  } else if(e.absolute && e.alpha !== null){
+    heading = 360 - e.alpha; // Android absolute orientation
+  }
+  if(heading !== null){
+    deviceHeading = heading;
+    compassActive = true;
+    updateCompassArrow();
+  }
+}
+
+function setupCompassToggle(){
+  const btn = document.getElementById('compassToggle');
+  if(!btn) return;
+  const supported = 'DeviceOrientationEvent' in window;
+  if(!supported) return;
+  btn.style.display = 'inline-block';
+  btn.addEventListener('click', async () => {
+    if(typeof DeviceOrientationEvent.requestPermission === 'function'){
+      try{
+        const res = await DeviceOrientationEvent.requestPermission();
+        if(res !== 'granted'){ btn.textContent = 'Compass permission denied'; return; }
+      }catch(e){ btn.textContent = 'Compass unavailable'; return; }
+    }
+    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+    window.addEventListener('deviceorientation', handleOrientation, true);
+    btn.textContent = 'Live compass on';
+    btn.disabled = true;
+  });
+}
+
+function moonPhase(date){
+  // simple synodic approximation
+  const synodic = 29.53058867;
+  const known = new Date(Date.UTC(2000,0,6,18,14)); // known new moon
+  const days = (date - known) / 86400000;
+  let phase = (days % synodic) / synodic;
+  if(phase < 0) phase += 1;
+  const illum = (1 - Math.cos(2*Math.PI*phase)) / 2;
+  let name;
+  if(phase < 0.03 || phase > 0.97) name = "New moon";
+  else if(phase < 0.22) name = "Waxing crescent";
+  else if(phase < 0.28) name = "First quarter";
+  else if(phase < 0.47) name = "Waxing gibbous";
+  else if(phase < 0.53) name = "Full moon";
+  else if(phase < 0.72) name = "Waning gibbous";
+  else if(phase < 0.78) name = "Last quarter";
+  else name = "Waning crescent";
+  return { name, illum: Math.round(illum*100) };
+}
+
+function paintSky(now, sunrise, sunset){
+  const arc = document.getElementById('skyArc');
+  const marker = document.getElementById('skyMarker');
+  const left = document.getElementById('skyLabelLeft');
+  const right = document.getElementById('skyLabelRight');
+  const dawnStart = new Date(sunrise.getTime() - 40*60000);
+  const duskEnd = new Date(sunset.getTime() + 40*60000);
+  let bg, phaseLabel;
+  const t = now.getTime();
+
+  if(t < dawnStart.getTime() || t > duskEnd.getTime()){
+    bg = 'linear-gradient(90deg, #10141b, #1b2233, #10141b)';
+    phaseLabel = 'Night';
+  } else if(t < sunrise.getTime()){
+    bg = 'linear-gradient(90deg, #1b2233, #6c5a95, #e2a13d)';
+    phaseLabel = 'Dawn';
+  } else if(t < sunset.getTime() - 40*60000){
+    bg = 'linear-gradient(90deg, #4d7fa8, #86b3d1, #cfe6ec)';
+    phaseLabel = 'Day';
+  } else {
+    bg = 'linear-gradient(90deg, #e2a13d, #6c5a95, #1b2233)';
+    phaseLabel = 'Dusk';
+  }
+  arc.style.background = bg;
+
+  // position marker across dawnStart -> duskEnd span, wrapping night to edges
+  const spanStart = dawnStart.getTime(), spanEnd = duskEnd.getTime();
+  let pct;
+  if(t >= spanStart && t <= spanEnd){
+    pct = (t - spanStart) / (spanEnd - spanStart) * 100;
+  } else {
+    pct = t < spanStart ? 2 : 98;
+  }
+  marker.style.left = pct + '%';
+  marker.style.background = (phaseLabel === 'Night') ? '#cfd8e3' : '#fff4d6';
+
+  left.textContent = 'Rise ' + fmtTime(sunrise);
+  right.textContent = 'Set ' + fmtTime(sunset);
+  return phaseLabel;
+}
+
+async function reverseGeocode(lat,lng){
+  try{
+    const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
+    const d = await r.json();
+    return d.locality || d.city || d.principalSubdivision || 'your location';
+  }catch(e){ return 'your location'; }
+}
+
+async function getWeather(lat,lng){
+  const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weather_code,cloud_cover,wind_speed_10m,precipitation&hourly=temperature_2m,weather_code,precipitation_probability&daily=sunrise,sunset&timezone=auto&forecast_hours=2`);
+  if(!r.ok) throw new Error('open-meteo http ' + r.status);
+  return r.json();
+}
+
+const WMO = {0:'Clear sky',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Fog',51:'Light drizzle',53:'Drizzle',55:'Dense drizzle',61:'Light rain',63:'Rain',65:'Heavy rain',71:'Light snow',73:'Snow',75:'Heavy snow',80:'Rain showers',81:'Rain showers',82:'Violent showers',95:'Thunderstorm',96:'Thunderstorm',99:'Thunderstorm'};
+
+async function getGreenspace(lat,lng){
+  const q = `[out:json][timeout:15];(
+    way["leisure"~"park|nature_reserve|garden"](around:1500,${lat},${lng});
+    way["natural"~"wood|water|heath|wetland"](around:1500,${lat},${lng});
+    node["leisure"~"park|nature_reserve"](around:1500,${lat},${lng});
+  );out center 10;`;
+  const r = await fetch('https://overpass-api.de/api/interpreter', {method:'POST', body:q});
+  if(!r.ok) throw new Error('overpass http ' + r.status);
+  const d = await r.json();
+  if(!d.elements || !d.elements.length) return null;
+  let best=null, bestD=Infinity;
+  for(const el of d.elements){
+    const elat = el.lat || (el.center && el.center.lat);
+    const elng = el.lon || (el.center && el.center.lon);
+    if(!elat) continue;
+    const dist = haversine(lat,lng,elat,elng);
+    if(dist < bestD){ bestD = dist; best = el; }
+  }
+  if(!best) return null;
+  const name = (best.tags && (best.tags.name)) || (best.tags && best.tags.natural) || (best.tags && best.tags.leisure) || 'Unnamed green space';
+  const kind = (best.tags && (best.tags.leisure || best.tags.natural)) || 'green space';
+  const blat = best.lat || (best.center && best.center.lat);
+  const blng = best.lon || (best.center && best.center.lon);
+  return { name, kind, distance: Math.round(bestD), lat: blat, lng: blng };
+}
+
+async function getSpecies(lat,lng){
+  // "Nearby" = within a 10km radius of your location, most recent verifiable
+  // observations first (iNaturalist's own definition of a reasonably local sighting).
+  const url = `https://api.inaturalist.org/v1/observations?lat=${lat}&lng=${lng}&radius=10&order_by=observed_on&order=desc&per_page=30&photos=true&verifiable=true`;
+  const r = await fetch(url);
+  if(!r.ok) throw new Error('inaturalist http ' + r.status);
+  const d = await r.json();
+  if(!d.results || !d.results.length) return null;
+  const withPhotos = d.results.filter(o => o.taxon && o.photos && o.photos.length);
+  if(!withPhotos.length) return null;
+
+  // pick up to 3, preferring distinct species over repeats of the same one
+  const seen = new Set();
+  const distinct = [];
+  for(const o of withPhotos){
+    if(!seen.has(o.taxon.id)){ seen.add(o.taxon.id); distinct.push(o); }
+  }
+  const pool = distinct.length >= 3 ? distinct : withPhotos;
+  const picks = [];
+  const used = new Set();
+  while(picks.length < 3 && picks.length < pool.length){
+    const idx = Math.floor(Math.random()*pool.length);
+    if(used.has(idx)) continue;
+    used.add(idx);
+    const o = pool[idx];
+    const photo = o.photos[0].url ? o.photos[0].url.replace('square', 'medium') : null;
+    picks.push({
+      name: o.taxon.preferred_common_name || o.taxon.name,
+      sci: o.taxon.name,
+      date: o.observed_on,
+      photo,
+      url: o.uri || `https://www.inaturalist.org/observations/${o.id}`
+    });
+  }
+  return picks;
+}
+
+// --- Activities are loaded from activities.csv so they can be edited without touching code ---
+let activitiesData = null;
+let activitiesPromise = null;
+
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for(let i=0; i<text.length; i++){
+    const c = text[i], next = text[i+1];
+    if(inQuotes){
+      if(c === '"' && next === '"'){ field += '"'; i++; }
+      else if(c === '"'){ inQuotes = false; }
+      else { field += c; }
+    } else {
+      if(c === '"'){ inQuotes = true; }
+      else if(c === ','){ row.push(field); field = ''; }
+      else if(c === '\r'){ /* skip */ }
+      else if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
+      else { field += c; }
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  const header = rows.shift();
+  return rows.filter(r => r.length === header.length && r.some(x => x.trim() !== ''))
+    .map(r => Object.fromEntries(header.map((h,i) => [h.trim(), r[i]])));
+}
+
+function loadActivities(){
+  if(!activitiesPromise){
+    activitiesPromise = fetch('activities.csv')
+      .then(r => { if(!r.ok) throw new Error('http ' + r.status); return r.text(); })
+      .then(text => { activitiesData = parseCSV(text); })
+      .catch(e => {
+        console.error('activities.csv failed to load, using fallback', e);
+        activitiesData = [{
+          id:'fallback', title:'Do a one-square-metre survey',
+          body:"Pick any patch of ground and spend three minutes cataloguing everything alive in it. There's always more than expected.",
+          phase:'Any', weather:'any', min_temp:'', max_temp:'', needs_greenspace:'no', needs_species:'no', min_moon_illum:'', max_moon_illum:''
+        }];
+      });
+  }
+  return activitiesPromise;
+}
+
+function fillTemplate(str, vars){
+  return str.replace(/\{(\w+)\}/g, (m, key) => (key in vars) ? vars[key] : m);
+}
+
+function buildActivityPool(ctx){
+  if(!activitiesData) return [];
+  const { phase, weatherCode, temp, greenspace, species, moon, precip } = ctx;
+  const isRain = weatherCode !== null && [51,53,55,61,63,65,80,81,82].includes(weatherCode);
+  const isClear = weatherCode !== null && weatherCode <= 1;
+  const s = (species && species.length) ? species[Math.floor(Math.random()*species.length)] : null;
+  const vars = {
+    moon_name: moon ? moon.name.toLowerCase() : '',
+    moon_illum: moon ? moon.illum : '',
+    greenspace_name: greenspace ? greenspace.name : '',
+    greenspace_distance: greenspace ? (greenspace.distance < 1000 ? greenspace.distance + 'm' : (greenspace.distance/1000).toFixed(1) + 'km') : '',
+    species_name: s ? s.name.toLowerCase() : '',
+    species_sci: s ? s.sci : ''
+  };
+
+  const pool = [];
+  for(const a of activitiesData){
+    if(a.phase && a.phase !== 'Any' && a.phase !== phase) continue;
+    if(a.weather === 'rain' && !isRain) continue;
+    if(a.weather === 'clear' && !isClear) continue;
+    if(a.min_temp && (temp === null || temp < parseFloat(a.min_temp))) continue;
+    if(a.max_temp && (temp === null || temp > parseFloat(a.max_temp))) continue;
+    if(a.needs_greenspace === 'yes' && !greenspace) continue;
+    if(a.needs_species === 'yes' && !s) continue;
+    if(a.min_moon_illum && (!moon || moon.illum < parseFloat(a.min_moon_illum))) continue;
+    if(a.max_moon_illum && (!moon || moon.illum > parseFloat(a.max_moon_illum))) continue;
+    pool.push({ t: fillTemplate(a.title, vars), b: fillTemplate(a.body, vars) });
+  }
+  return pool;
+}
+
+const TREES = [
+  { common:"Pedunculate Oak", wt:"english-oak", latin:"Quercus robur", notes:{
+    spring:"New leaves unfurl bronze-pink before turning green; look for dangling yellow catkins.",
+    summer:"Acorns are forming on long stalks (peduncles) — the feature that gives this oak its name.",
+    autumn:"Acorns drop and leaves turn a deep russet-brown, often clinging on into winter.",
+    winter:"Bare, gnarled branches and a thick, deeply fissured bark make it easy to pick out." }},
+  { common:"Silver Birch", wt:"silver-birch", latin:"Betula pendula", notes:{
+    spring:"Fresh, small triangular leaves emerge alongside long yellow-brown catkins.",
+    summer:"Papery white bark peels in thin curls; look closely for black diamond-shaped fissures.",
+    autumn:"Leaves turn a clear buttery yellow, among the first trees to colour up.",
+    winter:"The white bark stands out starkly against dark winter woodland." }},
+  { common:"European Beech", wt:"common-beech", latin:"Fagus sylvatica", notes:{
+    spring:"Soft, lime-green new leaves are edged with fine silky hairs — worth touching.",
+    summer:"Dense, smooth-edged dark green canopy casts heavy shade below.",
+    autumn:"One of the best trees for colour — leaves turn copper-orange, and beechmast litters the ground.",
+    winter:"Smooth grey bark and a habit of holding papery brown leaves through winter (marcescence)." }},
+  { common:"Common Ash", wt:"ash", latin:"Fraxinus excelsior", notes:{
+    spring:"Black, velvety buds open late, among the last trees to leaf up.",
+    summer:"Leaves are pinnate — 7-13 leaflets in opposite pairs along a central stem.",
+    autumn:"Bunches of winged seeds ('ash keys') hang in dense clusters.",
+    winter:"Distinctive jet-black buds are the easiest way to identify it bare." }},
+  { common:"Field Maple", wt:"field-maple", latin:"Acer campestre", notes:{
+    spring:"Small yellow-green flower clusters appear as the five-lobed leaves open.",
+    summer:"Corky ridges sometimes develop on young twigs and branches.",
+    autumn:"Leaves turn a rich buttery yellow, among the best small trees for autumn colour.",
+    winter:"Fine, twiggy growth and pale brown bark with shallow ridges." }},
+  { common:"Hawthorn", wt:"hawthorn", latin:"Crataegus monogyna", notes:{
+    spring:"Covered in white blossom ('May blossom') — one of Britain's most reliable spring signals.",
+    summer:"Deeply lobed glossy leaves; look for the sharp thorns along the twigs.",
+    autumn:"Deep red haws (berries) cluster along the branches, a key food for winter thrushes.",
+    winter:"Dense, thorny tangled branches often shaped by hedge-laying." }},
+  { common:"Blackthorn", wt:"blackthorn", latin:"Prunus spinosa", notes:{
+    spring:"Flowers before its leaves — clouds of small white blossom on bare black twigs.",
+    summer:"Small oval dark green leaves and vicious spines along dense growth.",
+    autumn:"Sloes — small blue-black plums with a waxy bloom — ripen along the branches.",
+    winter:"Very dark, almost black bark and twigs, densely thorny." }},
+  { common:"Rowan", wt:"rowan", latin:"Sorbus aucuparia", notes:{
+    spring:"Flat clusters of creamy-white flowers open above feathery, ash-like leaves.",
+    summer:"Leaves are pinnate with 5-8 pairs of toothed leaflets.",
+    autumn:"Bright orange-red berries hang in heavy bunches, stripped fast by birds.",
+    winter:"Smooth grey-brown bark; often found on higher, exposed ground." }},
+  { common:"Wych Elm", wt:"wych-elm", latin:"Ulmus glabra", notes:{
+    spring:"Clusters of small red-brown flowers appear before the leaves, followed by round winged seeds.",
+    summer:"Large, rough, asymmetric leaves with a distinctive lopsided base.",
+    autumn:"Leaves turn a dull yellow before falling.",
+    winter:"Grey, ridged bark on a broad, often leaning trunk." }},
+  { common:"Common Alder", wt:"alder", latin:"Alnus glutinosa", notes:{
+    spring:"Long yellow male catkins hang beside small red female flowers on the same twig.",
+    summer:"Rounded, slightly sticky dark green leaves, usually found by water.",
+    autumn:"Small woody cone-like fruits persist on the tree well into winter.",
+    winter:"Old blackened cones from last year are often still on the tree alongside new purple-tinted buds." }},
+  { common:"Holly", wt:"holly", latin:"Ilex aquifolium", notes:{
+    spring:"Small white flowers appear among the glossy, spiny evergreen leaves.",
+    summer:"Leaves near the top of mature trees are often smoother-edged than lower, browsed leaves.",
+    autumn:"Female trees begin showing green berries that will redden through winter.",
+    winter:"Bright red berries against dark glossy evergreen leaves — classic midwinter colour." }},
+  { common:"Yew", wt:"yew", latin:"Taxus baccata", notes:{
+    spring:"Small yellow pollen cones appear on male trees, releasing clouds of pollen.",
+    summer:"Dense, dark evergreen needles all year — look for flattened rather than rounded needles versus conifers.",
+    autumn:"Bright red fleshy 'berries' (arils) appear on female trees — the flesh is the only non-toxic part of the tree.",
+    winter:"Deep reddish-brown flaking bark on trunks that are often ancient and hollowed." }},
+  { common:"Scots Pine", wt:"scots-pine", latin:"Pinus sylvestris", notes:{
+    spring:"New pale green shoots ('candles') push upward from branch tips.",
+    summer:"Blue-green needles in pairs; look up for an orange-tinged upper canopy.",
+    autumn:"Woody cones mature and begin opening to release seeds.",
+    winter:"Its orange-red upper bark is one of the most distinctive winter silhouettes in Britain." }},
+  { common:"Crab Apple", wt:"crab-apple", latin:"Malus sylvestris", notes:{
+    spring:"Pink-tinged white blossom opens, an important early nectar source.",
+    summer:"Small, hard green apples begin to swell among toothed oval leaves.",
+    autumn:"Small yellow-green or red-flushed crab apples litter the ground, sharply sour if tasted.",
+    winter:"Gnarled, often lichen-covered branches with a rounded crown." }},
+  { common:"Wild Cherry", wt:"wild-cherry", latin:"Prunus avium", notes:{
+    spring:"Among the showiest blossom of any native tree — clusters of white flowers before the leaves.",
+    summer:"Small dark red cherries ripen, quickly taken by birds.",
+    autumn:"Leaves turn vivid orange and red, one of the best for autumn colour.",
+    winter:"Smooth reddish-brown bark with distinctive horizontal breathing pores (lenticels)." }},
+  { common:"Hornbeam", wt:"hornbeam", latin:"Carpinus betulus", notes:{
+    spring:"Leaves emerge pleated, similar to beech but with a more toothed, ridged edge.",
+    summer:"Distinctive winged seed clusters develop, hanging in papery bunches.",
+    autumn:"Leaves turn yellow-orange; winged seeds spin down in the wind.",
+    winter:"Smooth grey bark with a fluted, muscular-looking trunk." }},
+  { common:"Sweet Chestnut", wt:"sweet-chestnut", latin:"Castanea sativa", notes:{
+    spring:"Long, toothed glossy leaves unfurl, unrelated to horse chestnut despite the name.",
+    summer:"Long yellow catkins give off a distinctive heavy scent.",
+    autumn:"Spiky green cases split open to drop shiny brown chestnuts.",
+    winter:"Bark develops deep spiral ridges as the tree ages." }},
+  { common:"Horse Chestnut", wt:"horse-chestnut", latin:"Aesculus hippocastanum", notes:{
+    spring:"Upright 'candle' flower spikes of white blossom appear above hand-shaped leaves.",
+    summer:"Large palmate leaves with five to seven leaflets provide dense shade.",
+    autumn:"Spiky green cases split to reveal glossy brown conkers.",
+    winter:"Sticky, dark red-brown buds are unmistakable on bare twigs." }},
+  { common:"Common Lime", wt:"common-lime", latin:"Tilia x europaea", notes:{
+    spring:"Heart-shaped leaves unfurl bright green, often with a slightly lopsided base.",
+    summer:"Small pale yellow flowers give off a strong sweet scent, popular with bees.",
+    autumn:"Round, ribbed seed clusters hang from pale green bracts.",
+    winter:"Often shows dense clusters of twiggy epicormic growth ('burrs') around the base." }},
+  { common:"Wild Service Tree", wt:"wild-service-tree", latin:"Sorbus torminalis", notes:{
+    spring:"Maple-like lobed leaves open alongside clusters of white flowers.",
+    summer:"An indicator of ancient woodland — uncommon and worth the search.",
+    autumn:"Brown speckled fruits ('chequers') ripen and leaves turn deep red-orange.",
+    winter:"Bark breaks into small rectangular plates, sometimes called 'chequer bark'." }},
+  { common:"Goat Willow", wt:"goat-willow", latin:"Salix caprea", notes:{
+    spring:"Silvery 'pussy willow' catkins appear before the leaves, an early spring signal.",
+    summer:"Broad, downy grey-green leaves distinguish it from narrower willow species.",
+    autumn:"Leaves yellow and fall, often among the first to turn.",
+    winter:"Grey-brown twigs with prominent leaf scars; look for it near damp ground." }},
+  { common:"Aspen", wt:"aspen", latin:"Populus tremula", notes:{
+    spring:"Purple-grey catkins hang before the rounded leaves unfurl.",
+    summer:"Leaves tremble constantly in the slightest breeze — flattened leaf stalks are the reason why.",
+    autumn:"Leaves turn gold and continue their distinctive trembling as they fall.",
+    winter:"Smooth greenish-grey bark, often marked with diamond-shaped scars." }},
+  { common:"Juniper", wt:"juniper", latin:"Juniperus communis", notes:{
+    spring:"Small yellow flowers appear on this native conifer, easy to overlook.",
+    summer:"Sharp, needle-like blue-green leaves in whorls of three.",
+    autumn:"Blue-black berry-like cones take up to three years to ripen fully.",
+    winter:"Low, often sprawling evergreen habit, frequently on chalk downland or moorland." }},
+  { common:"Bird Cherry", wt:"bird-cherry", latin:"Prunus padus", notes:{
+    spring:"Long, drooping spikes of almond-scented white flowers, later than wild cherry.",
+    summer:"Small black cherries form, bitter to taste but valuable for birds.",
+    autumn:"Leaves turn red-purple; look for it in cooler, northern woodland and stream sides.",
+    winter:"Bark has a strong, unpleasant smell if scratched — an easy identifying test." }}
+];
+
+function getSeason(month){
+  if(month>=3 && month<=5) return 'spring';
+  if(month>=6 && month<=8) return 'summer';
+  if(month>=9 && month<=11) return 'autumn';
+  return 'winter';
+}
+
+function dayOfYear(d){
+  const start = new Date(d.getFullYear(),0,0);
+  return Math.floor((d - start) / 86400000);
+}
+
+async function loadTreeOfDay(){
+  const now = new Date();
+  const idx = dayOfYear(now) % TREES.length;
+  const tree = TREES[idx];
+  const season = getSeason(now.getMonth()+1);
+  document.getElementById('treeV').textContent = tree.common;
+  document.getElementById('treeSub').textContent = tree.latin;
+  document.getElementById('treeNote').textContent = tree.notes[season];
+  document.getElementById('treeLink').textContent = 'More on Woodland Trust';
+  document.getElementById('treeLink').href = `https://www.woodlandtrust.org.uk/trees-woods-and-wildlife/british-trees/a-z-of-british-trees/${tree.wt}/`;
+
+  try{
+    const title = tree.latin.replace(/ /g,'_');
+    const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+    if(r.ok){
+      const d = await r.json();
+      const img = document.getElementById('treeImg');
+      if(d.thumbnail && d.thumbnail.source){
+        img.src = d.thumbnail.source;
+        img.alt = tree.common;
+        img.style.display = 'block';
+      }
+    }
+  }catch(e){ console.error('tree photo fetch failed', e); }
+}
+
+const BIRDS = [
+  { common:"Robin", latin:"Erithacus rubecula", rspb:"robin", notes:{
+    spring:"Males sing to defend territory and attract mates; listen for its wistful, wandering warble at dawn and dusk.",
+    summer:"Adults moult and can look scruffy; juveniles are speckled brown with no red breast yet.",
+    autumn:"One of the few birds still singing strongly — establishing winter territories, both sexes now.",
+    winter:"Sings even on cold, still days; the UK's most familiar garden visitor, often bold around people." }},
+  { common:"Blackbird", latin:"Turdus merula", rspb:"blackbird", notes:{
+    spring:"Males sing rich, fluted phrases from rooftops and treetops at dawn.",
+    summer:"Listen for sharp 'chink-chink' alarm calls when a cat or predator is nearby.",
+    autumn:"UK birds are joined by migrants from Scandinavia; look for them feasting on berries.",
+    winter:"Forms loose flocks around good berry sources like holly and cotoneaster." }},
+  { common:"Blue Tit", latin:"Cyanistes caeruleus", rspb:"blue-tit", notes:{
+    spring:"Pairs nest in holes and boxes; listen for a bright, scolding 'tsee-tsee-tsee-tsu-hu-hu'.",
+    summer:"Family flocks move together through gardens and woodland after fledging.",
+    autumn:"Joins mixed flocks with other tits, roaming further for food as insects become scarce.",
+    winter:"A regular at feeders — look for its blue cap and yellow underside among the crowd." }},
+  { common:"Great Tit", latin:"Parus major", rspb:"great-tit", notes:{
+    spring:"Sings a repetitive 'teacher-teacher' song, often the first bird heard in late winter dawn choruses.",
+    summer:"The UK's largest tit, look for the bold black head stripe running down a yellow chest.",
+    autumn:"Joins roving mixed-species flocks foraging through woodland and hedgerow.",
+    winter:"Confident at feeders, sometimes squabbling with other tits over the best perch." }},
+  { common:"Coal Tit", latin:"Periparus ater", rspb:"coal-tit", notes:{
+    spring:"A high, thin 'see-saw' song, favouring conifers where it nests in low holes or stumps.",
+    summer:"Smallest UK tit; look for the distinctive white stripe down the back of its black head.",
+    autumn:"Caches food for winter, hiding seeds in bark crevices to retrieve later.",
+    winter:"Quick, darting visits to feeders — grabs a seed and retreats to eat it elsewhere." }},
+  { common:"Long-tailed Tit", latin:"Aegithalos caudatus", rspb:"long-tailed-tit", notes:{
+    spring:"Builds an extraordinary dome nest of moss, lichen and spider silk, camouflaged and stretchy.",
+    summer:"Family groups of a dozen or more move together, keeping in constant soft contact calls.",
+    autumn:"Roams hedgerows and woodland edges in tight, chattering flocks.",
+    winter:"Roosts huddled in a line on a branch for warmth — a memorable sight if you spot it." }},
+  { common:"Wren", latin:"Troglodytes troglodytes", rspb:"wren", notes:{
+    spring:"An astonishingly loud, trilling song for such a tiny bird, often from deep cover.",
+    summer:"Males may build several nests for a female to choose from before finishing one.",
+    autumn:"Forages low in dense vegetation, hedge bottoms, and log piles for insects.",
+    winter:"Sometimes roosts communally in nest boxes or crevices, huddling for warmth on cold nights." }},
+  { common:"Dunnock", latin:"Prunella modularis", rspb:"dunnock", notes:{
+    spring:"Quiet, unassuming, but with a surprisingly complex mating system — often more than one male per female.",
+    summer:"A thin, high-pitched 'seep' call given in flight, easy to overlook.",
+    autumn:"Shuffles along the ground under hedges and shrubs, rarely far from cover.",
+    winter:"Feeds quietly beneath bird tables, picking up what other species drop." }},
+  { common:"House Sparrow", latin:"Passer domesticus", rspb:"house-sparrow", notes:{
+    spring:"Noisy colonial nesters — listen for constant chirruping around roof eaves and hedges.",
+    summer:"Forms dust-bathing groups on bare ground, a good way to spot them.",
+    autumn:"UK numbers have fallen sharply since the 1970s, so a healthy flock is worth noting.",
+    winter:"Roosts communally in dense hedges or ivy, keeping warm in numbers." }},
+  { common:"Chaffinch", latin:"Fringilla coelebs", rspb:"chaffinch", notes:{
+    spring:"A cheerful, descending song ending in a flourish, one of the most common spring sounds.",
+    summer:"Flash of white on the wings and outer tail feathers is the easiest way to spot one in flight.",
+    autumn:"UK birds may be joined by continental migrants arriving for winter.",
+    winter:"Feeds on the ground under trees and feeders rather than clinging to them directly." }},
+  { common:"Goldfinch", latin:"Carduelis carduelis", rspb:"goldfinch", notes:{
+    spring:"A light, tinkling, liquid song, often given in flight or from treetops.",
+    summer:"Look for the bright red face and yellow wing flash — unmistakable at close range.",
+    autumn:"Feeds acrobatically on thistle and teasel seedheads, hanging at all angles.",
+    winter:"Forms flocks called 'charms', often visiting niger seed feeders." }},
+  { common:"Greenfinch", latin:"Chloris chloris", rspb:"greenfinch", notes:{
+    spring:"A distinctive wheezing, nasal call given during a slow, butterfly-like display flight.",
+    summer:"Olive-green plumage with yellow wing flashes; often heard before seen.",
+    autumn:"Forms flocks with other finches, moving through hedgerows and stubble fields.",
+    winter:"Populations have suffered from trichomonosis — clean feeders help reduce disease spread." }},
+  { common:"Bullfinch", latin:"Pyrrhula pyrrhula", rspb:"bullfinch", notes:{
+    spring:"A quiet, understated song; far more often heard is its soft, mournful piping call.",
+    summer:"Look for the male's vivid pink-red breast against a black cap, usually in pairs.",
+    autumn:"Feeds on seeds and berries in scrub and woodland edge, staying discreetly hidden.",
+    winter:"Will strip fruit tree buds, sometimes bringing it into gardens and orchards." }},
+  { common:"Starling", latin:"Sturnus vulgaris", rspb:"starling", notes:{
+    spring:"An extraordinary mimic — its song often includes fragments copied from other birds and even machinery.",
+    summer:"Iridescent plumage looks almost black at a distance but flashes green-purple in good light.",
+    autumn:"Huge murmurations begin forming as UK birds are joined by continental migrants.",
+    winter:"The best time to catch a murmuration at dusk near a roost site." }},
+  { common:"Woodpigeon", latin:"Columba palumbus", rspb:"woodpigeon", notes:{
+    spring:"A soft, rhythmic five-note coo, one of the most familiar background sounds of British parks.",
+    summer:"The UK's largest and commonest pigeon, look for the white neck patch.",
+    autumn:"Forms large flocks feeding on fallen acorns, grain, and berries.",
+    winter:"Continues to breed almost year-round given mild enough conditions and food supply." }},
+  { common:"Collared Dove", latin:"Streptopelia decaocto", rspb:"collared-dove", notes:{
+    spring:"A persistent three-note 'coo-COO-coo' repeated monotonously, often from a rooftop or wire.",
+    summer:"Pale sandy-grey plumage with a distinctive black half-collar on the neck.",
+    autumn:"A relatively recent colonist — first bred in the UK in the 1950s, now widespread.",
+    winter:"Often seen in pairs year-round, rarely far from human habitation." }},
+  { common:"Song Thrush", latin:"Turdus philomelos", rspb:"song-thrush", notes:{
+    spring:"Repeats each musical phrase two or three times — a useful trick for telling it apart from blackbird.",
+    summer:"Uses a favourite stone as an 'anvil' to smash open snail shells — look for shell fragments nearby.",
+    autumn:"UK numbers decline; some resident birds move south while others arrive from the continent.",
+    winter:"Feeds on berries and windfall fruit when the ground is too hard for worms." }},
+  { common:"Mistle Thrush", latin:"Turdus viscivorus", rspb:"mistle-thrush", notes:{
+    spring:"Sings loudly even into wind and rain, earning the old name 'stormcock'.",
+    summer:"Larger and greyer than song thrush, with bolder, more spaced spotting below.",
+    autumn:"Aggressively defends a favoured berry-laden tree, chasing off other thrushes.",
+    winter:"Often seen alone guarding a mistletoe or holly bush as a private winter larder." }},
+  { common:"Magpie", latin:"Pica pica", rspb:"magpie", notes:{
+    spring:"Builds a large domed stick nest, often visible in bare treetops before leaves emerge.",
+    summer:"Family groups forage together on lawns and verges, walking with a distinctive strut.",
+    autumn:"Forms loose flocks, sometimes gathering noisily to mob a predator like a cat or fox.",
+    winter:"Iridescent blue-green sheen on the tail and wings is easiest to see in low winter light." }},
+  { common:"Jackdaw", latin:"Corvus monedula", rspb:"jackdaw", notes:{
+    spring:"Nests colonially in chimneys, tree holes, and church towers — pairs mate for life.",
+    summer:"Pale grey nape and sharp silvery-white eye are the easiest features to spot.",
+    autumn:"Forms large mixed flocks with rooks, often seen flying to communal roosts at dusk.",
+    winter:"Highly social, often heard before seen — a sharp, metallic 'tchack' call." }}
+];
+
+async function loadBirdOfDay(){
+  const now = new Date();
+  const idx = (dayOfYear(now) + 7) % BIRDS.length; // offset so tree/bird don't always line up
+  const bird = BIRDS[idx];
+  const season = getSeason(now.getMonth()+1);
+  document.getElementById('birdV').textContent = bird.common;
+  document.getElementById('birdSub').textContent = bird.latin;
+  document.getElementById('birdNote').textContent = bird.notes[season];
+  document.getElementById('birdLink').href = `https://www.rspb.org.uk/birds-and-wildlife/${bird.rspb}`;
+
+  try{
+    const title = bird.latin.replace(/ /g,'_');
+    const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+    if(r.ok){
+      const d = await r.json();
+      const img = document.getElementById('birdImg');
+      if(d.thumbnail && d.thumbnail.source){
+        img.src = d.thumbnail.source;
+        img.alt = bird.common;
+        img.style.display = 'block';
+      }
+    }
+  }catch(e){ console.error('bird photo fetch failed', e); }
+
+  try{
+    const soundUrl = `https://api.inaturalist.org/v1/observations?taxon_name=${encodeURIComponent(bird.latin)}&sounds=true&per_page=10&order_by=votes&order=desc`;
+    const r = await fetch(soundUrl);
+    if(r.ok){
+      const d = await r.json();
+      const withSound = (d.results || []).find(o => o.sounds && o.sounds.length && o.sounds[0].file_url);
+      const audio = document.getElementById('birdAudio');
+      const msg = document.getElementById('birdAudioMsg');
+      if(withSound){
+        audio.src = withSound.sounds[0].file_url;
+        audio.style.display = 'inline-block';
+        msg.style.display = 'none';
+      } else {
+        audio.style.display = 'none';
+        msg.style.display = 'inline';
+      }
+    }
+  }catch(e){
+    console.error('bird sound fetch failed', e);
+    document.getElementById('birdAudioMsg').style.display = 'inline';
+  }
+}
+async function getSpeciesCounts(lat,lng,radius,opts={}){
+  let url = `https://api.inaturalist.org/v1/observations/species_counts?lat=${lat}&lng=${lng}&radius=${radius}&per_page=10&verifiable=true`;
+  if(opts.month) url += `&month=${opts.month}`;
+  const r = await fetch(url);
+  if(!r.ok) throw new Error('inaturalist species_counts http ' + r.status);
+  const d = await r.json();
+  if(!d.results || !d.results.length) return null;
+  return d.results.map(row => ({
+    name: row.taxon.preferred_common_name || row.taxon.name,
+    sci: row.taxon.name,
+    count: row.count,
+    photo: row.taxon.default_photo ? row.taxon.default_photo.medium_url : null,
+    url: `https://www.inaturalist.org/taxa/${row.taxon.id}`
+  }));
+}
+
+function renderChipRow(containerId, list, emptyMsg){
+  const container = document.getElementById(containerId);
+  if(!list || !list.length){
+    container.innerHTML = `<div class="sub">${emptyMsg}</div>`;
+    return;
+  }
+  const row = document.createElement('div');
+  row.className = 'chip-row';
+  list.forEach(s => {
+    const chip = document.createElement('a');
+    chip.href = s.url;
+    chip.target = '_blank';
+    chip.rel = 'noopener';
+    chip.className = 'chip';
+    chip.innerHTML = `
+      ${s.photo ? `<img src="${s.photo}" alt="${s.name}">` : `<div class="species-thumb"></div>`}
+      <div class="chip-name">${s.name}</div>
+      <div class="chip-count">${s.count} record${s.count===1?'':'s'}</div>`;
+    row.appendChild(chip);
+  });
+  container.innerHTML = '';
+  container.appendChild(row);
+}
+
+function setupTabs(){
+  const btns = document.querySelectorAll('.tab-btn');
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      btns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const target = btn.dataset.tab;
+      document.getElementById('speciesList').style.display = target === 'recent' ? 'block' : 'none';
+      document.getElementById('commonList').style.display = target === 'common' ? 'block' : 'none';
+      document.getElementById('seasonalList').style.display = target === 'seasonal' ? 'block' : 'none';
+    });
+  });
+}
+
+function showActivity(){
+  if(!activityPool.length) return;
+  const pick = activityPool[Math.floor(Math.random()*activityPool.length)];
+  document.getElementById('actTitle').textContent = pick.t;
+  document.getElementById('actBody').textContent = pick.b;
+}
+document.getElementById('reroll').addEventListener('click', showActivity);
+
+async function loadEverything(lat,lng){
+  state.lat = lat; state.lng = lng;
+  document.getElementById('locLine').textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  reverseGeocode(lat,lng).then(place => {
+    document.getElementById('locLine').textContent = `${place} · ${lat.toFixed(3)}, ${lng.toFixed(3)}`;
+  });
+
+  const now = new Date();
+  const moon = moonPhase(now);
+  document.getElementById('moonV').textContent = moon.name;
+  document.getElementById('moonSub').textContent = moon.illum + '% illuminated';
+
+  let weatherData = null, phase = 'Day';
+  try{
+    weatherData = await getWeather(lat,lng);
+    const cur = weatherData.current;
+    const sunrise = new Date(weatherData.daily.sunrise[0]);
+    const sunset = new Date(weatherData.daily.sunset[0]);
+    document.getElementById('weatherV').textContent = `${Math.round(cur.temperature_2m)}°C · ${WMO[cur.weather_code] || 'Mixed'}`;
+    document.getElementById('weatherSub').textContent = `Wind ${Math.round(cur.wind_speed_10m)} km/h · Cloud ${cur.cloud_cover}%`;
+
+    if(weatherData.hourly && weatherData.hourly.time && weatherData.hourly.time.length > 1){
+      const h = weatherData.hourly;
+      const nowIso = now.toISOString().slice(0,13);
+      let idx = h.time.findIndex(t => t.slice(0,13) >= nowIso);
+      if(idx === -1) idx = 0;
+      const nextIdx = Math.min(idx + 1, h.time.length - 1);
+      const nextTemp = Math.round(h.temperature_2m[nextIdx]);
+      const nextCode = h.weather_code[nextIdx];
+      const nextPop = h.precipitation_probability ? h.precipitation_probability[nextIdx] : null;
+      const nextTime = new Date(h.time[nextIdx]);
+      document.getElementById('hourlyV').textContent = `${nextTemp}°C · ${WMO[nextCode] || 'Mixed'}`;
+      document.getElementById('hourlySub').textContent = `By ${fmtTime(nextTime)}` + (nextPop !== null ? ` · ${nextPop}% chance of rain` : '');
+    } else {
+      document.getElementById('hourlyV').textContent = 'Unavailable';
+    }
+    phase = paintSky(now, sunrise, sunset);
+    const untilSet = (sunset - now) / 60000;
+    const untilRise = (sunrise - now) / 60000;
+    if(phase === 'Day') document.getElementById('lightV').textContent = `${Math.round(untilSet/60)}h to sunset`;
+    else if(phase === 'Night' && untilRise > 0) document.getElementById('lightV').textContent = `${Math.round(untilRise/60)}h to sunrise`;
+    else document.getElementById('lightV').textContent = phase;
+    document.getElementById('lightSub').textContent = `Rise ${fmtTime(sunrise)} · Set ${fmtTime(sunset)}`;
+
+    buildAndShow({ phase, weatherCode: cur.weather_code, temp: cur.temperature_2m, precip: cur.precipitation, moon });
+  }catch(e){
+    document.getElementById('weatherV').textContent = 'Unavailable';
+    document.getElementById('weatherSub').textContent = 'Network error: ' + e.message;
+    document.getElementById('hourlyV').textContent = 'Unavailable';
+    console.error('weather fetch failed', e);
+    buildAndShow({ phase:'Day', weatherCode:null, temp:null, precip:0, moon });
+  }
+
+  getGreenspace(lat,lng).then(g => {
+    if(g){
+      document.getElementById('greenV').textContent = g.name;
+      const distTxt = g.distance < 1000 ? g.distance+'m' : (g.distance/1000).toFixed(1)+'km';
+      if(g.lat && g.lng){
+        targetBearing = bearingTo(lat, lng, g.lat, g.lng);
+        document.getElementById('greenSub').textContent = `${g.kind} · ${cardinalFromBearing(targetBearing)} · ${distTxt} away`;
+        updateCompassArrow();
+      } else {
+        document.getElementById('greenSub').textContent = `${g.kind} · ${distTxt} away`;
+      }
+      state.green = g;
+    } else {
+      document.getElementById('greenV').textContent = 'None found nearby';
+      document.getElementById('greenSub').textContent = 'Within 1.5km';
+      document.getElementById('compassSvg').style.display = 'none';
+    }
+    rebuildPoolWith({green: g});
+  }).catch(e => {
+    document.getElementById('greenV').textContent = 'Unavailable';
+    document.getElementById('greenSub').textContent = 'Network error: ' + e.message;
+    document.getElementById('compassSvg').style.display = 'none';
+    console.error('greenspace fetch failed', e);
+  });
+
+  getSpecies(lat,lng).then(list => {
+    const container = document.getElementById('speciesList');
+    container.innerHTML = '';
+    if(list && list.length){
+      list.forEach(s => {
+        const row = document.createElement('a');
+        row.href = s.url;
+        row.target = '_blank';
+        row.rel = 'noopener';
+        row.className = 'species-row';
+        row.innerHTML = `
+          ${s.photo ? `<img class="species-thumb" src="${s.photo}" alt="${s.name}">` : `<div class="species-thumb"></div>`}
+          <div>
+            <div class="v" style="font-size:1rem;">${s.name}</div>
+            <div class="sub">${s.sci}${s.date ? ' · ' + s.date : ''}</div>
+          </div>`;
+        container.appendChild(row);
+      });
+      state.species = list;
+    } else {
+      container.innerHTML = `<div class="v">No recent records</div><div class="sub">iNaturalist has nothing verifiable within 10km</div>`;
+    }
+    rebuildPoolWith({species: list});
+  }).catch(e => {
+    document.getElementById('speciesList').innerHTML = `<div class="v">Unavailable</div><div class="sub">Network error: ${e.message}</div>`;
+    console.error('species fetch failed', e);
+  });
+
+  getSpeciesCounts(lat, lng, 2).then(list => {
+    renderChipRow('commonList', list, 'Nothing verifiable within 2km yet.');
+  }).catch(e => {
+    document.getElementById('commonList').innerHTML = `<div class="sub">Network error: ${e.message}</div>`;
+    console.error('common species fetch failed', e);
+  });
+
+  getSpeciesCounts(lat, lng, 5, { month: now.getMonth() + 1 }).then(list => {
+    renderChipRow('seasonalList', list, 'Nothing verifiable within 5km for this month yet.');
+  }).catch(e => {
+    document.getElementById('seasonalList').innerHTML = `<div class="sub">Network error: ${e.message}</div>`;
+    console.error('seasonal species fetch failed', e);
+  });
+}
+
+let lastCtx = null;
+async function buildAndShow(ctx){
+  await loadActivities();
+  lastCtx = { ...ctx, green: state.green, species: state.species };
+  activityPool = buildActivityPool(lastCtx);
+  showActivity();
+}
+async function rebuildPoolWith(patch){
+  if(!lastCtx) return;
+  await loadActivities();
+  lastCtx = { ...lastCtx, ...patch };
+  activityPool = buildActivityPool(lastCtx);
+  showActivity();
+}
+
+async function ipFallback(reason){
+  document.getElementById('locLine').textContent = reason + ' — using approximate IP location…';
+  try{
+    const r = await fetch('https://ipwho.is/');
+    const d = await r.json();
+    if(d && d.success !== false && d.latitude){
+      loadEverything(d.latitude, d.longitude);
+      return;
+    }
+    throw new Error('no coords');
+  }catch(e){
+    document.getElementById('locLine').textContent = 'Could not determine location automatically — enter coordinates below.';
+  }
+}
+
+function initGeo(){
+  if(!navigator.geolocation){
+    ipFallback('No GPS available');
+    return;
+  }
+  // If the browser never even shows a permission prompt (common inside
+  // sandboxed iframes), getCurrentPosition hangs — so race it against a
+  // short timeout and fall back to IP-based location either way.
+  let settled = false;
+  const timer = setTimeout(() => {
+    if(!settled){ settled = true; ipFallback('GPS unavailable here'); }
+  }, 3500);
+
+  navigator.geolocation.getCurrentPosition(
+    pos => { if(!settled){ settled = true; clearTimeout(timer); loadEverything(pos.coords.latitude, pos.coords.longitude); } },
+    err => { if(!settled){ settled = true; clearTimeout(timer); ipFallback('Location permission denied'); } },
+    { timeout: 3500 }
+  );
+}
+
+document.getElementById('manualGo').addEventListener('click', () => {
+  const lat = parseFloat(document.getElementById('latIn').value);
+  const lng = parseFloat(document.getElementById('lngIn').value);
+  if(!isNaN(lat) && !isNaN(lng)){
+    loadEverything(lat,lng);
+  }
+});
+
+loadActivities();
+initGeo();
+loadTreeOfDay();
+loadBirdOfDay();
+setupCompassToggle();
+setupTabs();
+
+// PWA install prompt
+let deferredInstall = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstall = e;
+  const btn = document.getElementById('installBtn');
+  if(btn) btn.style.display = 'inline-block';
+});
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('installBtn');
+  if(btn){
+    btn.addEventListener('click', async () => {
+      if(!deferredInstall) return;
+      deferredInstall.prompt();
+      await deferredInstall.userChoice;
+      deferredInstall = null;
+      btn.style.display = 'none';
+    });
+  }
+});
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => console.error('SW registration failed', err));
+  });
+}
+
+</script>
+</body>
+</html>

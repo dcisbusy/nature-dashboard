@@ -33,7 +33,7 @@ self.addEventListener('fetch', event => {
     'api.gbif.org',
     'ipwho.is',
     'api.bigdatacloud.net'
-  ].some(host => url.hostname.includes(host));
+  ].some(host => url.hostname.includes(host)) || url.pathname.endsWith('activities.csv');
 
   if (isLiveData) {
     event.respondWith(fetch(event.request));
