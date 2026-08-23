@@ -1,0 +1,54 @@
+const CACHE_NAME = 'field-notes-shell-v1';
+const SHELL_FILES = [
+  './nature-dashboard.html',
+  './manifest.json',
+  './icons/icon-192.png',
+  './icons/icon-512.png'
+];
+
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL_FILES))
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+
+  // Never cache live data calls — weather, greenspace, species, moon/geo lookups
+  // always need fresh network data, not a stale cached response.
+  const isLiveData = [
+    'api.open-meteo.com',
+    'overpass-api.de',
+    'api.gbif.org',
+    'ipwho.is',
+    'api.bigdatacloud.net'
+  ].some(host => url.hostname.includes(host));
+
+  if (isLiveData) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // App shell: cache-first, so the icon/page still opens offline
+  event.respondWith(
+    caches.match(event.request).then(cached => {
+      return cached || fetch(event.request).then(resp => {
+        return caches.open(CACHE_NAME).then(cache => {
+          cache.put(event.request, resp.clone());
+          return resp;
+        });
+      });
+    })
+  );
+});

@@ -1,0 +1,37 @@
+{
+  "name": "Field Notes — Nature Dashboard",
+  "short_name": "Field Notes",
+  "description": "Live sky, light, moon, and nearby nature data with activity suggestions",
+  "start_url": "./nature-dashboard.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#161d24",
+  "theme_color": "#161d24",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
