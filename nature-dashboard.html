@@ -122,6 +122,16 @@ h1{
 .card.wide{grid-column:1 / -1;}
 
 .green-row{display:flex; align-items:center; gap:0.6rem; margin-top:0.15rem;}
+.green-rest-row{
+  display:flex;
+  justify-content:space-between;
+  gap:0.6rem;
+  padding:0.4rem 0;
+  border-top:1px solid var(--line);
+  font-size:0.85rem;
+}
+.green-rest-row .name{ color: var(--bone); }
+.green-rest-row .meta{ color: rgba(234,227,210,0.6); font-size:0.78rem; white-space:nowrap; }
 .mini-btn{
   margin-top:0.6rem;
   background:rgba(234,227,210,0.1);
@@ -308,8 +318,8 @@ footer{
     </div>
     <div class="card"><div class="k">Light</div><div class="v" id="lightV">loading…</div><div class="sub" id="lightSub"></div></div>
     <div class="card"><div class="k">Moon</div><div class="v" id="moonV">loading…</div><div class="sub" id="moonSub"></div></div>
-    <div class="card" id="greenCard">
-      <div class="k">Nearest green</div>
+    <div class="card wide" id="greenCard">
+      <div class="k">Nearest green spaces</div>
       <div class="green-row">
         <svg id="compassSvg" width="46" height="46" viewBox="0 0 46 46">
           <circle cx="23" cy="23" r="21" fill="none" stroke="rgba(234,227,210,0.25)" stroke-width="1.5"/>
@@ -323,7 +333,8 @@ footer{
           <div class="sub" id="greenSub"></div>
         </div>
       </div>
-      <button id="compassToggle" class="mini-btn" style="display:none;">Enable live compass</button>
+      <div id="greenRestList" style="margin-top:0.5rem;"></div>
+      <button id="compassToggle" class="mini-btn" style="display:none; margin-top:0.6rem;">Enable live compass</button>
       <div class="sub" id="liveTrackStatus" style="margin-top:0.5rem;"></div>
     </div>
     <div class="card wide" id="treesCard" style="display:none;">
@@ -389,7 +400,7 @@ footer{
   <footer>
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
-    Last edited <span id="buildStamp">24/8/26</span> · v2.4 · build e9b3a0
+    Last edited <span id="buildStamp">24/8/26</span> · v2.5 · build 945a88
   </footer>
 </div>
 
@@ -541,37 +552,75 @@ async function getWeather(lat,lng){
 
 const WMO = {0:'Clear sky',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Fog',51:'Light drizzle',53:'Drizzle',55:'Dense drizzle',61:'Light rain',63:'Rain',65:'Heavy rain',71:'Light snow',73:'Snow',75:'Heavy snow',80:'Rain showers',81:'Rain showers',82:'Violent showers',95:'Thunderstorm',96:'Thunderstorm',99:'Thunderstorm'};
 
-async function getGreenspace(lat,lng){
-  const q = `[out:json][timeout:20];(
+const OVERPASS_MIRRORS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter',
+  'https://overpass.openstreetmap.ru/api/interpreter'
+];
+
+async function fetchOverpass(query){
+  let lastError = null;
+  for(const mirror of OVERPASS_MIRRORS){
+    try{
+      const r = await fetch(mirror, { method: 'POST', body: query });
+      if(!r.ok) throw new Error('http ' + r.status);
+      return await r.json();
+    }catch(e){
+      lastError = e;
+      console.warn('Overpass mirror failed, trying next:', mirror, e.message);
+    }
+  }
+  throw lastError || new Error('all Overpass mirrors failed');
+}
+
+async function getGreenspaces(lat,lng){
+  // out geom with NO tight cap -- a low cap here previously caused a real bug:
+  // Overpass doesn't sort by distance before truncating, so a close, large,
+  // correct result (e.g. a big park) could be silently excluded in favour of
+  // smaller, more distant ones that just happened to be enumerated first.
+  const q = `[out:json][timeout:25];(
     way["leisure"~"park|nature_reserve|garden"](around:2000,${lat},${lng});
     way["natural"~"wood|water|heath|wetland"](around:2000,${lat},${lng});
     node["leisure"~"park|nature_reserve"](around:2000,${lat},${lng});
-  );out geom 15;`;
-  const r = await fetch('https://overpass-api.de/api/interpreter', {method:'POST', body:q});
-  if(!r.ok) throw new Error('overpass http ' + r.status);
-  const d = await r.json();
-  if(!d.elements || !d.elements.length) return null;
+  );out geom 200;`;
+  const d = await fetchOverpass(q);
+  if(!d.elements || !d.elements.length) return [];
 
-  let best=null, bestD=Infinity, bestPoint=null;
+  // For each candidate feature, find the closest point on its boundary (not
+  // its centroid -- see earlier fix), then keep the 3 closest distinct features.
+  const candidates = [];
   for(const el of d.elements){
+    let bestD = Infinity, bestPoint = null;
     if(el.type === 'node'){
       if(el.lat == null) continue;
-      const dist = haversine(lat, lng, el.lat, el.lon);
-      if(dist < bestD){ bestD = dist; best = el; bestPoint = {lat: el.lat, lng: el.lon}; }
+      bestD = haversine(lat, lng, el.lat, el.lon);
+      bestPoint = {lat: el.lat, lng: el.lon};
     } else if(el.geometry && el.geometry.length){
-      // Measure to every vertex on the boundary and keep the closest one --
-      // this reflects real distance to the edge of a park, not its middle,
-      // which matters a lot for large polygons when you're standing right by them.
       for(const pt of el.geometry){
         const dist = haversine(lat, lng, pt.lat, pt.lon);
-        if(dist < bestD){ bestD = dist; best = el; bestPoint = {lat: pt.lat, lng: pt.lon}; }
+        if(dist < bestD){ bestD = dist; bestPoint = {lat: pt.lat, lng: pt.lon}; }
       }
     }
+    if(!bestPoint) continue;
+    const name = (el.tags && el.tags.name) || (el.tags && el.tags.natural) || (el.tags && el.tags.leisure) || 'Unnamed green space';
+    const kind = (el.tags && (el.tags.leisure || el.tags.natural)) || 'green space';
+    candidates.push({ name, kind, distance: Math.round(bestD), lat: bestPoint.lat, lng: bestPoint.lng });
   }
-  if(!best) return null;
-  const name = (best.tags && (best.tags.name)) || (best.tags && best.tags.natural) || (best.tags && best.tags.leisure) || 'Unnamed green space';
-  const kind = (best.tags && (best.tags.leisure || best.tags.natural)) || 'green space';
-  return { name, kind, distance: Math.round(bestD), lat: bestPoint.lat, lng: bestPoint.lng };
+
+  // Dedupe by name+kind (large features can appear as multiple nearby vertices
+  // of the same way, but shouldn't count as separate entries) and take top 3.
+  const seen = new Set();
+  const deduped = [];
+  candidates.sort((a,b) => a.distance - b.distance);
+  for(const c of candidates){
+    const key = c.name + '|' + c.kind;
+    if(seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(c);
+    if(deduped.length >= 3) break;
+  }
+  return deduped;
 }
 
 async function fetchSpeciesAtRadius(lat,lng,radius){
@@ -1107,6 +1156,29 @@ function showActivity(){
 }
 document.getElementById('reroll').addEventListener('click', showActivity);
 
+function renderGreenspaceList(userLat, userLng, list){
+  if(!list || !list.length) return;
+  const nearest = list[0];
+  document.getElementById('greenV').textContent = nearest.name;
+  const nearestDist = Math.round(haversine(userLat, userLng, nearest.lat, nearest.lng));
+  const nearestTxt = nearestDist < 1000 ? nearestDist+'m' : (nearestDist/1000).toFixed(1)+'km';
+  targetBearing = bearingTo(userLat, userLng, nearest.lat, nearest.lng);
+  document.getElementById('greenSub').textContent = `${nearest.kind} · ${cardinalFromBearing(targetBearing)} · ${nearestTxt} away`;
+  updateCompassArrow();
+
+  const restEl = document.getElementById('greenRestList');
+  restEl.innerHTML = '';
+  list.slice(1).forEach((g, i) => {
+    const dist = Math.round(haversine(userLat, userLng, g.lat, g.lng));
+    const distTxt = dist < 1000 ? dist+'m' : (dist/1000).toFixed(1)+'km';
+    const bearing = bearingTo(userLat, userLng, g.lat, g.lng);
+    const row = document.createElement('div');
+    row.className = 'green-rest-row';
+    row.innerHTML = `<span class="name">#${i+2} ${g.name}</span><span class="meta">${cardinalFromBearing(bearing)} · ${distTxt}</span>`;
+    restEl.appendChild(row);
+  });
+}
+
 async function loadEverything(lat,lng){
   state.lat = lat; state.lng = lng;
   document.getElementById('locLine').textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
@@ -1168,33 +1240,17 @@ async function loadEverything(lat,lng){
     buildAndShow({ phase:'Day', weatherCode:null, temp:null, precip:0, moon });
   }
 
-  function renderGreenspace(userLat, userLng, g){
-    if(g){
-      document.getElementById('greenV').textContent = g.name;
-      const distTxt = g.distance < 1000 ? g.distance+'m' : (g.distance/1000).toFixed(1)+'km';
-      if(g.lat && g.lng){
-        const liveDistance = Math.round(haversine(userLat, userLng, g.lat, g.lng));
-        const liveTxt = liveDistance < 1000 ? liveDistance+'m' : (liveDistance/1000).toFixed(1)+'km';
-        targetBearing = bearingTo(userLat, userLng, g.lat, g.lng);
-        document.getElementById('greenSub').textContent = `${g.kind} · ${cardinalFromBearing(targetBearing)} · ${liveTxt} away`;
-        updateCompassArrow();
-      } else {
-        document.getElementById('greenSub').textContent = `${g.kind} · ${distTxt} away`;
-      }
-    }
-  }
-
-  getGreenspace(lat,lng).then(g => {
-    if(g){
-      state.green = g;
-      renderGreenspace(state.lat, state.lng, g);
+  getGreenspaces(lat,lng).then(list => {
+    if(list && list.length){
+      state.green = list;
+      renderGreenspaceList(state.lat, state.lng, list);
       startLiveDistanceTracking();
     } else {
       document.getElementById('greenV').textContent = 'None found nearby';
-      document.getElementById('greenSub').textContent = 'Within 1.5km';
+      document.getElementById('greenSub').textContent = 'Within 2km';
       document.getElementById('compassSvg').style.display = 'none';
     }
-    rebuildPoolWith({green: g});
+    rebuildPoolWith({green: (list && list[0]) || null});
   }).catch(e => {
     document.getElementById('greenV').textContent = 'Unavailable';
     document.getElementById('greenSub').textContent = 'Network error: ' + e.message;
@@ -1235,7 +1291,7 @@ async function loadEverything(lat,lng){
 let lastCtx = null;
 async function buildAndShow(ctx){
   await loadActivities();
-  lastCtx = { ...ctx, green: state.green, species: state.species };
+  lastCtx = { ...ctx, green: (state.green && state.green[0]) || null, species: state.species };
   activityPool = buildActivityPool(lastCtx);
   showActivity();
 }
@@ -1401,13 +1457,15 @@ function startLiveDistanceTracking(){
           ? `Live distance tracking: on, but low accuracy (±${acc}m) — check Android location permission is set to "Precise", not "Approximate"`
           : `Live distance tracking: on (±${acc}m accuracy)`;
       }
-      if(state.green){
-        const g = state.green;
-        const distTxt = Math.round(haversine(state.lat, state.lng, g.lat, g.lng));
-        const liveTxt = distTxt < 1000 ? distTxt+'m' : (distTxt/1000).toFixed(1)+'km';
-        targetBearing = bearingTo(state.lat, state.lng, g.lat, g.lng);
-        document.getElementById('greenSub').textContent = `${g.kind} · ${cardinalFromBearing(targetBearing)} · ${liveTxt} away`;
-        updateCompassArrow();
+      if(state.green && state.green.length){
+        // Re-sort live: as you walk, #2 or #3 can legitimately become nearer
+        // than the original #1, so re-rank the known set every update rather
+        // than just recomputing distance for a fixed order.
+        const resorted = [...state.green].sort((a,b) =>
+          haversine(state.lat, state.lng, a.lat, a.lng) - haversine(state.lat, state.lng, b.lat, b.lng)
+        );
+        state.green = resorted;
+        renderGreenspaceList(state.lat, state.lng, resorted);
       }
       if(inTreesArea(state.lat, state.lng)){
         renderNearestTree(state.lat, state.lng);
