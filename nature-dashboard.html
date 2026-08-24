@@ -323,6 +323,7 @@ footer{
         </div>
       </div>
       <button id="compassToggle" class="mini-btn" style="display:none;">Enable live compass</button>
+      <div class="sub" id="liveTrackStatus" style="margin-top:0.5rem;"></div>
     </div>
     <div class="card wide" id="speciesCard">
       <div class="k">Spotted nearby <span style="opacity:0.6; font-weight:normal;">(via iNaturalist, <span id="speciesRadiusLabel">2km</span>)</span></div>
@@ -382,7 +383,7 @@ footer{
   <footer>
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
-    Last edited <span id="buildStamp">24/8/26</span> · v2.0 · build 24b870
+    Last edited <span id="buildStamp">24/8/26</span> · v2.1 · build ad8a56
   </footer>
 </div>
 
@@ -535,29 +536,36 @@ async function getWeather(lat,lng){
 const WMO = {0:'Clear sky',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Fog',51:'Light drizzle',53:'Drizzle',55:'Dense drizzle',61:'Light rain',63:'Rain',65:'Heavy rain',71:'Light snow',73:'Snow',75:'Heavy snow',80:'Rain showers',81:'Rain showers',82:'Violent showers',95:'Thunderstorm',96:'Thunderstorm',99:'Thunderstorm'};
 
 async function getGreenspace(lat,lng){
-  const q = `[out:json][timeout:15];(
-    way["leisure"~"park|nature_reserve|garden"](around:1500,${lat},${lng});
-    way["natural"~"wood|water|heath|wetland"](around:1500,${lat},${lng});
-    node["leisure"~"park|nature_reserve"](around:1500,${lat},${lng});
-  );out center 10;`;
+  const q = `[out:json][timeout:20];(
+    way["leisure"~"park|nature_reserve|garden"](around:2000,${lat},${lng});
+    way["natural"~"wood|water|heath|wetland"](around:2000,${lat},${lng});
+    node["leisure"~"park|nature_reserve"](around:2000,${lat},${lng});
+  );out geom 15;`;
   const r = await fetch('https://overpass-api.de/api/interpreter', {method:'POST', body:q});
   if(!r.ok) throw new Error('overpass http ' + r.status);
   const d = await r.json();
   if(!d.elements || !d.elements.length) return null;
-  let best=null, bestD=Infinity;
+
+  let best=null, bestD=Infinity, bestPoint=null;
   for(const el of d.elements){
-    const elat = el.lat || (el.center && el.center.lat);
-    const elng = el.lon || (el.center && el.center.lon);
-    if(!elat) continue;
-    const dist = haversine(lat,lng,elat,elng);
-    if(dist < bestD){ bestD = dist; best = el; }
+    if(el.type === 'node'){
+      if(el.lat == null) continue;
+      const dist = haversine(lat, lng, el.lat, el.lon);
+      if(dist < bestD){ bestD = dist; best = el; bestPoint = {lat: el.lat, lng: el.lon}; }
+    } else if(el.geometry && el.geometry.length){
+      // Measure to every vertex on the boundary and keep the closest one --
+      // this reflects real distance to the edge of a park, not its middle,
+      // which matters a lot for large polygons when you're standing right by them.
+      for(const pt of el.geometry){
+        const dist = haversine(lat, lng, pt.lat, pt.lon);
+        if(dist < bestD){ bestD = dist; best = el; bestPoint = {lat: pt.lat, lng: pt.lon}; }
+      }
+    }
   }
   if(!best) return null;
   const name = (best.tags && (best.tags.name)) || (best.tags && best.tags.natural) || (best.tags && best.tags.leisure) || 'Unnamed green space';
   const kind = (best.tags && (best.tags.leisure || best.tags.natural)) || 'green space';
-  const blat = best.lat || (best.center && best.center.lat);
-  const blng = best.lon || (best.center && best.center.lon);
-  return { name, kind, distance: Math.round(bestD), lat: blat, lng: blng };
+  return { name, kind, distance: Math.round(bestD), lat: bestPoint.lat, lng: bestPoint.lng };
 }
 
 async function fetchSpeciesAtRadius(lat,lng,radius){
@@ -1243,11 +1251,18 @@ async function ipFallback(reason){
 
 let geoWatchId = null;
 function startLiveDistanceTracking(){
-  if(geoWatchId !== null || !navigator.geolocation) return;
+  const statusEl = document.getElementById('liveTrackStatus');
+  if(geoWatchId !== null) return;
+  if(!navigator.geolocation){
+    if(statusEl) statusEl.textContent = 'Live distance tracking: not supported on this browser';
+    return;
+  }
+  if(statusEl) statusEl.textContent = 'Live distance tracking: waiting for GPS…';
   geoWatchId = navigator.geolocation.watchPosition(
     pos => {
       state.lat = pos.coords.latitude;
       state.lng = pos.coords.longitude;
+      if(statusEl) statusEl.textContent = `Live distance tracking: on (±${Math.round(pos.coords.accuracy)}m accuracy)`;
       if(state.green){
         const g = state.green;
         const distTxt = Math.round(haversine(state.lat, state.lng, g.lat, g.lng));
@@ -1257,7 +1272,11 @@ function startLiveDistanceTracking(){
         updateCompassArrow();
       }
     },
-    err => { console.error('live position tracking unavailable', err); },
+    err => {
+      console.error('live position tracking unavailable', err);
+      const reasons = {1:'permission denied', 2:'position unavailable', 3:'timed out'};
+      if(statusEl) statusEl.textContent = `Live distance tracking: off (${reasons[err.code] || err.message})`;
+    },
     { enableHighAccuracy: true, maximumAge: 8000, timeout: 10000 }
   );
 }
