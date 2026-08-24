@@ -28,6 +28,7 @@ body{
   font-family:'Inter',sans-serif;
   min-height:100vh;
   padding:0 0 3rem;
+  overflow-x:hidden;
 }
 .wrap{max-width:640px; margin:0 auto; padding:0 1.1rem;}
 
@@ -89,7 +90,7 @@ h1{
 /* cards */
 .grid{
   display:grid;
-  grid-template-columns:1fr 1fr;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
   gap:0.7rem;
   margin-top:1.1rem;
 }
@@ -98,6 +99,7 @@ h1{
   border:1px solid var(--line);
   border-radius:12px;
   padding:0.85rem 0.9rem;
+  min-width:0;
 }
 .card .k{
   font-family:'Space Mono',monospace;
@@ -306,7 +308,7 @@ footer{
   line-height:1.6;
 }
 @media (max-width:420px){
-  .grid{grid-template-columns:1fr;}
+  .grid{grid-template-columns:minmax(0,1fr);}
   h1{font-size:1.6rem;}
 }
 </style>
@@ -420,7 +422,7 @@ footer{
   <footer>
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
-    Last edited <span id="buildStamp">24/8/26</span> · v2.7 · build 1e494a
+    Last edited <span id="buildStamp">24/8/26</span> · v2.8 · build 79e26d
   </footer>
 </div>
 
