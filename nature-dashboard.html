@@ -201,6 +201,33 @@ h1{
   font-size:0.65rem;
   color:rgba(234,227,210,0.55);
 }
+.swipe-container{
+  display:flex;
+  overflow-x:auto;
+  scroll-snap-type:x mandatory;
+  gap:0;
+  margin:0 -1.05rem;
+  padding:0 1.05rem;
+  -webkit-overflow-scrolling:touch;
+}
+.swipe-panel{
+  flex:0 0 100%;
+  scroll-snap-align:start;
+  padding-right:1.05rem;
+  box-sizing:border-box;
+}
+.swipe-dots{
+  display:flex;
+  gap:0.35rem;
+  justify-content:center;
+  margin-top:0.6rem;
+}
+.swipe-dot{
+  width:6px; height:6px;
+  border-radius:50%;
+  background:rgba(234,227,210,0.25);
+}
+.swipe-dot.active{ background: var(--amber); }
 .species-thumb{
   width:64px; height:64px;
   border-radius:10px;
@@ -317,7 +344,7 @@ footer{
       <div class="sub" id="hourlySub" style="margin-top:0.35rem; padding-top:0.35rem; border-top:1px solid var(--line);">loading next hour…</div>
     </div>
     <div class="card"><div class="k">Light</div><div class="v" id="lightV">loading…</div><div class="sub" id="lightSub"></div></div>
-    <div class="card"><div class="k">Moon</div><div class="v" id="moonV">loading…</div><div class="sub" id="moonSub"></div></div>
+    <div class="card"><div class="k">Moon</div><div class="v" id="moonV">loading…</div><div class="sub" id="moonSub"></div><div class="sub" id="moonRiseSet" style="margin-top:0.3rem;"></div></div>
     <div class="card wide" id="greenCard">
       <div class="k">Nearest green spaces</div>
       <div class="green-row">
@@ -337,6 +364,23 @@ footer{
       <button id="compassToggle" class="mini-btn" style="display:none; margin-top:0.6rem;">Enable live compass</button>
       <div class="sub" id="liveTrackStatus" style="margin-top:0.5rem;"></div>
     </div>
+    <div class="card wide" id="blueCard">
+      <div class="k">Nearest blue spaces <span style="opacity:0.6; font-weight:normal;">(rivers, lakes &amp; coast)</span></div>
+      <div class="green-row">
+        <svg id="blueCompassSvg" width="46" height="46" viewBox="0 0 46 46">
+          <circle cx="23" cy="23" r="21" fill="none" stroke="rgba(234,227,210,0.25)" stroke-width="1.5"/>
+          <text x="23" y="8" text-anchor="middle" font-size="7" fill="rgba(234,227,210,0.55)" font-family="Space Mono, monospace">N</text>
+          <g id="blueCompassArrowGroup" transform="rotate(0 23 23)">
+            <polygon points="23,9 27,25 23,21 19,25" fill="#5b9bd5"/>
+          </g>
+        </svg>
+        <div>
+          <div class="v" id="blueV">loading…</div>
+          <div class="sub" id="blueSub"></div>
+        </div>
+      </div>
+      <div id="blueRestList" style="margin-top:0.5rem;"></div>
+    </div>
     <div class="card wide" id="treesCard" style="display:none;">
       <div class="k">Nearest tree <span style="opacity:0.6; font-weight:normal;">(approx. Lambeth/Southwark/Bromley/Croydon area)</span></div>
       <div class="v" id="treesV">loading…</div>
@@ -348,44 +392,19 @@ footer{
       <div id="speciesList" class="tab-panel"></div>
     </div>
     <div class="card wide" id="treeCard">
-      <div class="k">Tree of the week</div>
-      <div class="species-row">
-        <img id="treeImg" class="species-thumb" style="display:none;" alt="">
-        <div>
-          <div class="v" id="treeV">loading…</div>
-          <div class="sub" id="treeSub"></div>
-          <div class="sub" id="treeNote" style="margin-top:0.4rem;"></div>
-        </div>
-      </div>
-      <a id="treeLink" href="#" target="_blank" rel="noopener" class="mini-btn" style="display:inline-block; margin-top:0.7rem; text-decoration:none;">More on Woodland Trust</a>
+      <div class="k">Trees of the week <span style="opacity:0.6; font-weight:normal;">(swipe for more)</span></div>
+      <div class="swipe-container" id="treeSwipe"></div>
+      <div class="swipe-dots" id="treeDots"></div>
     </div>
     <div class="card wide" id="birdCard">
-      <div class="k">Bird of the week</div>
-      <div class="species-row">
-        <img id="birdImg" class="species-thumb" style="display:none;" alt="">
-        <div>
-          <div class="v" id="birdV">loading…</div>
-          <div class="sub" id="birdSub"></div>
-          <div class="sub" id="birdNote" style="margin-top:0.4rem;"></div>
-        </div>
-      </div>
-      <div style="margin-top:0.7rem;">
-        <a id="birdLink" href="#" target="_blank" rel="noopener" class="mini-btn" style="text-decoration:none;">More on RSPB</a>
-      </div>
+      <div class="k">Birds of the week <span style="opacity:0.6; font-weight:normal;">(swipe for more)</span></div>
+      <div class="swipe-container" id="birdSwipe"></div>
+      <div class="swipe-dots" id="birdDots"></div>
     </div>
     <div class="card wide" id="forageCard">
-      <div class="k">Forage of the week <span id="forageMatchLabel" style="opacity:0.6; font-weight:normal;"></span></div>
-      <div class="species-row">
-        <img id="forageImg" class="species-thumb" style="display:none;" alt="">
-        <div>
-          <div class="v" id="forageV">loading…</div>
-          <div class="sub" id="forageSub"></div>
-          <div class="sub" id="forageNote" style="margin-top:0.4rem;"></div>
-        </div>
-      </div>
-      <div style="margin-top:0.7rem;">
-        <a id="forageLink" href="#" target="_blank" rel="noopener" class="mini-btn" style="text-decoration:none;">More on Plants For A Future</a>
-      </div>
+      <div class="k">Forage of the week <span style="opacity:0.6; font-weight:normal;">(swipe for more)</span></div>
+      <div class="swipe-container" id="forageSwipe"></div>
+      <div class="swipe-dots" id="forageDots"></div>
       <div class="sub" style="margin-top:0.6rem; opacity:0.75;">Always identify with total certainty before eating or using any wild plant.</div>
     </div>
   </div>
@@ -400,12 +419,12 @@ footer{
   <footer>
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
-    Last edited <span id="buildStamp">24/8/26</span> · v2.5 · build 945a88
+    Last edited <span id="buildStamp">24/8/26</span> · v2.6 · build b70b54
   </footer>
 </div>
 
 <script>
-const state = { lat:null, lng:null, weather:null, sunrise:null, sunset:null, place:null, green:null, species:null, moon:null };
+const state = { lat:null, lng:null, weather:null, sunrise:null, sunset:null, place:null, green:null, blue:null, species:null, moon:null };
 
 function fmtTime(d){ return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
 
@@ -439,6 +458,12 @@ function updateCompassArrow(){
   if(!group || targetBearing === null) return;
   const rotation = compassActive ? (targetBearing - deviceHeading + 360) % 360 : targetBearing;
   group.setAttribute('transform', `rotate(${rotation} 23 23)`);
+}
+
+function updateBlueCompassArrow(bearing){
+  const group = document.getElementById('blueCompassArrowGroup');
+  if(!group || bearing === null) return;
+  group.setAttribute('transform', `rotate(${bearing} 23 23)`);
 }
 
 function handleOrientation(e){
@@ -493,6 +518,39 @@ function moonPhase(date){
   else if(phase < 0.78) name = "Last quarter";
   else name = "Waning crescent";
   return { name, illum: Math.round(illum*100) };
+}
+
+async function getMoonRiseSet(lat, lng){
+  // Fetch today AND tomorrow so we can correctly tell whether the moon is up
+  // right now even when its rise/set times straddle midnight -- a single
+  // day's data alone can't disambiguate that.
+  const r = await fetch(`https://api.sunrisesunset.io/json?lat=${lat}&lng=${lng}&date_start=today&date_end=tomorrow&formatted=0`);
+  if(!r.ok) throw new Error('sunrisesunset.io http ' + r.status);
+  const d = await r.json();
+  if(d.status !== 'OK' && d.status !== 'INVALID_TZID') throw new Error('sunrisesunset.io status ' + d.status);
+  const days = Array.isArray(d.results) ? d.results : [d.results];
+
+  const events = [];
+  for(const day of days){
+    if(day.moonrise) events.push({ t: new Date(day.moonrise), type: 'rise' });
+    if(day.moonset) events.push({ t: new Date(day.moonset), type: 'set' });
+  }
+  events.sort((a,b) => a.t - b.t);
+
+  const now = new Date();
+  let isUp = null; // null = couldn't determine (rare, e.g. near-polar edge cases)
+  let mostRecent = null;
+  for(const e of events){
+    if(e.t <= now) mostRecent = e;
+  }
+  if(mostRecent) isUp = mostRecent.type === 'rise';
+
+  const today = days[0];
+  return {
+    moonrise: today.moonrise ? new Date(today.moonrise) : null,
+    moonset: today.moonset ? new Date(today.moonset) : null,
+    isUp
+  };
 }
 
 function paintSky(now, sunrise, sunset){
@@ -574,23 +632,9 @@ async function fetchOverpass(query){
   throw lastError || new Error('all Overpass mirrors failed');
 }
 
-async function getGreenspaces(lat,lng){
-  // out geom with NO tight cap -- a low cap here previously caused a real bug:
-  // Overpass doesn't sort by distance before truncating, so a close, large,
-  // correct result (e.g. a big park) could be silently excluded in favour of
-  // smaller, more distant ones that just happened to be enumerated first.
-  const q = `[out:json][timeout:25];(
-    way["leisure"~"park|nature_reserve|garden"](around:2000,${lat},${lng});
-    way["natural"~"wood|water|heath|wetland"](around:2000,${lat},${lng});
-    node["leisure"~"park|nature_reserve"](around:2000,${lat},${lng});
-  );out geom 200;`;
-  const d = await fetchOverpass(q);
-  if(!d.elements || !d.elements.length) return [];
-
-  // For each candidate feature, find the closest point on its boundary (not
-  // its centroid -- see earlier fix), then keep the 3 closest distinct features.
+function rankNearbyFeatures(lat, lng, elements, fallbackKind){
   const candidates = [];
-  for(const el of d.elements){
+  for(const el of elements){
     let bestD = Infinity, bestPoint = null;
     if(el.type === 'node'){
       if(el.lat == null) continue;
@@ -603,11 +647,10 @@ async function getGreenspaces(lat,lng){
       }
     }
     if(!bestPoint) continue;
-    const name = (el.tags && el.tags.name) || (el.tags && el.tags.natural) || (el.tags && el.tags.leisure) || 'Unnamed green space';
-    const kind = (el.tags && (el.tags.leisure || el.tags.natural)) || 'green space';
+    const name = (el.tags && el.tags.name) || (el.tags && (el.tags.natural || el.tags.waterway || el.tags.leisure)) || `Unnamed ${fallbackKind}`;
+    const kind = (el.tags && (el.tags.leisure || el.tags.natural || el.tags.waterway)) || fallbackKind;
     candidates.push({ name, kind, distance: Math.round(bestD), lat: bestPoint.lat, lng: bestPoint.lng });
   }
-
   // Dedupe by name+kind (large features can appear as multiple nearby vertices
   // of the same way, but shouldn't count as separate entries) and take top 3.
   const seen = new Set();
@@ -621,6 +664,33 @@ async function getGreenspaces(lat,lng){
     if(deduped.length >= 3) break;
   }
   return deduped;
+}
+
+async function getGreenspaces(lat,lng){
+  // out geom with NO tight cap -- a low cap here previously caused a real bug:
+  // Overpass doesn't sort by distance before truncating, so a close, large,
+  // correct result (e.g. a big park) could be silently excluded in favour of
+  // smaller, more distant ones that just happened to be enumerated first.
+  const q = `[out:json][timeout:25];(
+    way["leisure"~"park|nature_reserve|garden"](around:2000,${lat},${lng});
+    way["natural"~"wood|water|heath|wetland"](around:2000,${lat},${lng});
+    node["leisure"~"park|nature_reserve"](around:2000,${lat},${lng});
+  );out geom 200;`;
+  const d = await fetchOverpass(q);
+  if(!d.elements || !d.elements.length) return [];
+  return rankNearbyFeatures(lat, lng, d.elements, 'green space');
+}
+
+async function getBlueSpaces(lat,lng){
+  const q = `[out:json][timeout:25];(
+    way["natural"="water"](around:3000,${lat},${lng});
+    way["waterway"~"river|canal|stream"](around:3000,${lat},${lng});
+    way["natural"="coastline"](around:3000,${lat},${lng});
+    way["leisure"="swimming_area"](around:3000,${lat},${lng});
+  );out geom 200;`;
+  const d = await fetchOverpass(q);
+  if(!d.elements || !d.elements.length) return [];
+  return rankNearbyFeatures(lat, lng, d.elements, 'water');
 }
 
 async function fetchSpeciesAtRadius(lat,lng,radius){
@@ -744,6 +814,12 @@ function buildActivityPool(ctx){
     if(a.needs_species === 'yes' && !s) continue;
     if(a.min_moon_illum && (!moon || moon.illum < parseFloat(a.min_moon_illum))) continue;
     if(a.max_moon_illum && (!moon || moon.illum > parseFloat(a.max_moon_illum))) continue;
+    // requires_moon_up: "yes" needs the moon actually above the horizon right now
+    // (a bright moon phase is meaningless for a moonlit walk if it's not up yet/already set);
+    // "no" prefers the moon down (better for dark-sky stargazing). Blank = don't care.
+    // If we couldn't determine isUp (moon.isUp === null/undefined), don't gate on it either way.
+    if(a.requires_moon_up === 'yes' && moon && moon.isUp === false) continue;
+    if(a.requires_moon_up === 'no' && moon && moon.isUp === true) continue;
     pool.push({ t: fillTemplate(a.title, vars), b: fillTemplate(a.body, vars) });
   }
   return pool;
@@ -894,30 +970,77 @@ function weekIndex(d){
   return Math.floor((date - epochMonday) / (7 * 86400000));
 }
 
-async function loadTreeOfDay(){
-  const now = new Date();
-  const idx = weekIndex(now) % TREES.length;
-  const tree = TREES[idx];
-  const season = getSeason(now.getMonth()+1);
-  document.getElementById('treeV').textContent = tree.common;
-  document.getElementById('treeSub').textContent = tree.latin;
-  document.getElementById('treeNote').textContent = tree.notes[season];
-  document.getElementById('treeLink').textContent = 'More on Woodland Trust';
-  document.getElementById('treeLink').href = `https://www.woodlandtrust.org.uk/trees-woods-and-wildlife/british-trees/a-z-of-british-trees/${tree.wt}/`;
+// Small deterministic PRNG (mulberry32) so "3 items this week" is reproducible
+// for everyone without needing a server -- same seed always gives the same 3.
+function seededRandom(seed){
+  let t = seed >>> 0;
+  return function(){
+    t += 0x6D2B79F5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
+function pick3Distinct(seed, length){
+  if(length <= 3) return Array.from({length}, (_,i) => i);
+  const rand = seededRandom(seed);
+  const chosen = new Set();
+  while(chosen.size < 3){
+    chosen.add(Math.floor(rand() * length));
+  }
+  return [...chosen];
+}
+
+function renderSwipePanels(containerId, dotsId, panelHtmls){
+  const container = document.getElementById(containerId);
+  const dotsEl = document.getElementById(dotsId);
+  container.innerHTML = panelHtmls.map(html => `<div class="swipe-panel">${html}</div>`).join('');
+  dotsEl.innerHTML = panelHtmls.map((_, i) => `<div class="swipe-dot${i===0?' active':''}"></div>`).join('');
+  const dots = dotsEl.querySelectorAll('.swipe-dot');
+  container.addEventListener('scroll', () => {
+    const idx = Math.round(container.scrollLeft / container.clientWidth);
+    dots.forEach((d,i) => d.classList.toggle('active', i === idx));
+  }, { passive: true });
+}
+
+async function fetchWikiThumb(latinName){
   try{
-    const title = tree.latin.replace(/ /g,'_');
+    const title = latinName.replace(/ /g,'_');
     const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
     if(r.ok){
       const d = await r.json();
-      const img = document.getElementById('treeImg');
-      if(d.thumbnail && d.thumbnail.source){
-        img.src = d.thumbnail.source;
-        img.alt = tree.common;
-        img.style.display = 'block';
-      }
+      if(d.thumbnail && d.thumbnail.source) return d.thumbnail.source;
     }
-  }catch(e){ console.error('tree photo fetch failed', e); }
+  }catch(e){ console.error('wikipedia thumb fetch failed for', latinName, e); }
+  return null;
+}
+
+function speciesPanelHtml(photo, name, sub, note, linkHtml){
+  return `
+    <div class="species-row">
+      ${photo ? `<img class="species-thumb" src="${photo}" alt="${name}">` : `<div class="species-thumb"></div>`}
+      <div>
+        <div class="v" style="font-size:1.05rem;">${name}</div>
+        <div class="sub">${sub}</div>
+        <div class="sub" style="margin-top:0.4rem;">${note}</div>
+      </div>
+    </div>
+    ${linkHtml}`;
+}
+
+async function loadTreeOfDay(){
+  const now = new Date();
+  const season = getSeason(now.getMonth()+1);
+  const indices = pick3Distinct(weekIndex(now), TREES.length);
+  const trees = indices.map(i => TREES[i]);
+
+  const photos = await Promise.all(trees.map(t => fetchWikiThumb(t.latin)));
+  const panels = trees.map((tree, i) => {
+    const link = `<a href="https://www.woodlandtrust.org.uk/trees-woods-and-wildlife/british-trees/a-z-of-british-trees/${tree.wt}/" target="_blank" rel="noopener" class="mini-btn" style="display:inline-block; margin-top:0.7rem; text-decoration:none;">More on Woodland Trust</a>`;
+    return speciesPanelHtml(photos[i], tree.common, tree.latin, tree.notes[season], link);
+  });
+  renderSwipePanels('treeSwipe', 'treeDots', panels);
 }
 
 const BIRDS = [
@@ -1068,68 +1191,44 @@ async function loadForageOfWeek(lat, lng){
   const inSeason = FORAGE.filter(f => f.months.includes(month));
   const pool = inSeason.length ? inSeason : FORAGE;
 
-  let matched = null;
-  let usedLocation = false;
-
+  let matchedLatins = new Set();
   if(lat != null && lng != null){
     try{
       const nearby = await getSpeciesCounts(lat, lng, 10, { month, taxon_id: 47126 });
       if(nearby && nearby.length){
-        const nearbyLatins = new Set(nearby.map(s => s.sci.split(' ').slice(0,2).join(' ').toLowerCase()));
-        const overlap = pool.filter(f => nearbyLatins.has(f.latin.toLowerCase()));
-        if(overlap.length){ matched = overlap; usedLocation = true; }
+        matchedLatins = new Set(nearby.map(s => s.sci.split(' ').slice(0,2).join(' ').toLowerCase()));
       }
     }catch(e){ console.error('forage location match failed', e); }
   }
+  const matched = pool.filter(f => matchedLatins.has(f.latin.toLowerCase()));
+  const finalPool = matched.length ? matched : pool;
 
-  const finalPool = matched && matched.length ? matched : pool;
-  const idx = weekIndex(now) % finalPool.length;
-  const plant = finalPool[idx];
+  const indices = pick3Distinct(weekIndex(now) + 6, finalPool.length);
+  const plants = indices.map(i => finalPool[i]);
+  const usedLocation = matched.length > 0;
 
-  document.getElementById('forageV').textContent = plant.common;
-  document.getElementById('forageSub').textContent = plant.latin;
-  document.getElementById('forageNote').textContent = plant.note;
-  document.getElementById('forageMatchLabel').textContent = usedLocation ? '(recorded near you this month)' : '(in season this month)';
-  document.getElementById('forageLink').href = `https://pfaf.org/user/Plant.aspx?LatinName=${encodeURIComponent(plant.latin)}`;
-
-  try{
-    const title = plant.latin.replace(/ /g,'_');
-    const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
-    if(r.ok){
-      const d = await r.json();
-      const img = document.getElementById('forageImg');
-      if(d.thumbnail && d.thumbnail.source){
-        img.src = d.thumbnail.source;
-        img.alt = plant.common;
-        img.style.display = 'block';
-      }
-    }
-  }catch(e){ console.error('forage photo fetch failed', e); }
+  const photos = await Promise.all(plants.map(p => fetchWikiThumb(p.latin)));
+  const panels = plants.map((plant, i) => {
+    const link = `<a href="https://pfaf.org/user/Plant.aspx?LatinName=${encodeURIComponent(plant.latin)}" target="_blank" rel="noopener" class="mini-btn" style="display:inline-block; margin-top:0.7rem; text-decoration:none;">More on Plants For A Future</a>`;
+    const matchLabel = `<div class="sub" style="opacity:0.6; margin-bottom:0.3rem;">${usedLocation ? 'Recorded near you this month' : 'In season this month'}</div>`;
+    return matchLabel + speciesPanelHtml(photos[i], plant.common, plant.latin, plant.note, link);
+  });
+  renderSwipePanels('forageSwipe', 'forageDots', panels);
 }
 
 async function loadBirdOfDay(){
   const now = new Date();
-  const idx = (weekIndex(now) + 3) % BIRDS.length; // offset so tree/bird don't land on the same week
-  const bird = BIRDS[idx];
   const season = getSeason(now.getMonth()+1);
-  document.getElementById('birdV').textContent = bird.common;
-  document.getElementById('birdSub').textContent = bird.latin;
-  document.getElementById('birdNote').textContent = bird.notes[season];
-  document.getElementById('birdLink').href = `https://www.rspb.org.uk/birds-and-wildlife/${bird.rspb}`;
+  // +3 week offset so tree/bird/forage don't all reseed identically the same week
+  const indices = pick3Distinct(weekIndex(now) + 3, BIRDS.length);
+  const birds = indices.map(i => BIRDS[i]);
 
-  try{
-    const title = bird.latin.replace(/ /g,'_');
-    const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
-    if(r.ok){
-      const d = await r.json();
-      const img = document.getElementById('birdImg');
-      if(d.thumbnail && d.thumbnail.source){
-        img.src = d.thumbnail.source;
-        img.alt = bird.common;
-        img.style.display = 'block';
-      }
-    }
-  }catch(e){ console.error('bird photo fetch failed', e); }
+  const photos = await Promise.all(birds.map(b => fetchWikiThumb(b.latin)));
+  const panels = birds.map((bird, i) => {
+    const link = `<a href="https://www.rspb.org.uk/birds-and-wildlife/${bird.rspb}" target="_blank" rel="noopener" class="mini-btn" style="display:inline-block; margin-top:0.7rem; text-decoration:none;">More on RSPB</a>`;
+    return speciesPanelHtml(photos[i], bird.common, bird.latin, bird.notes[season], link);
+  });
+  renderSwipePanels('birdSwipe', 'birdDots', panels);
 }
 async function getSpeciesCounts(lat,lng,radius,opts={}){
   let url = `https://api.inaturalist.org/v1/observations/species_counts?lat=${lat}&lng=${lng}&radius=${radius}&per_page=30&verifiable=true`;
@@ -1179,6 +1278,35 @@ function renderGreenspaceList(userLat, userLng, list){
   });
 }
 
+function renderBlueSpaceList(userLat, userLng, list){
+  if(!list || !list.length){
+    document.getElementById('blueV').textContent = 'None found within 3km';
+    document.getElementById('blueSub').textContent = '';
+    document.getElementById('blueCompassSvg').style.display = 'none';
+    return;
+  }
+  document.getElementById('blueCompassSvg').style.display = 'block';
+  const nearest = list[0];
+  document.getElementById('blueV').textContent = nearest.name;
+  const nearestDist = Math.round(haversine(userLat, userLng, nearest.lat, nearest.lng));
+  const nearestTxt = nearestDist < 1000 ? nearestDist+'m' : (nearestDist/1000).toFixed(1)+'km';
+  const bearing = bearingTo(userLat, userLng, nearest.lat, nearest.lng);
+  document.getElementById('blueSub').textContent = `${nearest.kind} · ${cardinalFromBearing(bearing)} · ${nearestTxt} away`;
+  updateBlueCompassArrow(bearing);
+
+  const restEl = document.getElementById('blueRestList');
+  restEl.innerHTML = '';
+  list.slice(1).forEach((b, i) => {
+    const dist = Math.round(haversine(userLat, userLng, b.lat, b.lng));
+    const distTxt = dist < 1000 ? dist+'m' : (dist/1000).toFixed(1)+'km';
+    const br = bearingTo(userLat, userLng, b.lat, b.lng);
+    const row = document.createElement('div');
+    row.className = 'green-rest-row';
+    row.innerHTML = `<span class="name">#${i+2} ${b.name}</span><span class="meta">${cardinalFromBearing(br)} · ${distTxt}</span>`;
+    restEl.appendChild(row);
+  });
+}
+
 async function loadEverything(lat,lng){
   state.lat = lat; state.lng = lng;
   document.getElementById('locLine').textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
@@ -1190,6 +1318,17 @@ async function loadEverything(lat,lng){
   const moon = moonPhase(now);
   document.getElementById('moonV').textContent = moon.name;
   document.getElementById('moonSub').textContent = moon.illum + '% illuminated';
+
+  getMoonRiseSet(lat, lng).then(rs => {
+    const riseTxt = rs.moonrise ? fmtTime(rs.moonrise) : 'none today';
+    const setTxt = rs.moonset ? fmtTime(rs.moonset) : 'none today';
+    document.getElementById('moonRiseSet').textContent = `Rise ${riseTxt} · Set ${setTxt}`;
+    moon.isUp = rs.isUp;
+    rebuildPoolWith({ moon });
+  }).catch(e => {
+    document.getElementById('moonRiseSet').textContent = 'Rise/set unavailable';
+    console.error('moonrise/set fetch failed', e);
+  });
 
   loadForageOfWeek(lat, lng).catch(e => console.error('forage load failed', e));
 
@@ -1256,6 +1395,17 @@ async function loadEverything(lat,lng){
     document.getElementById('greenSub').textContent = 'Network error: ' + e.message;
     document.getElementById('compassSvg').style.display = 'none';
     console.error('greenspace fetch failed', e);
+  });
+
+  getBlueSpaces(lat,lng).then(list => {
+    state.blue = list;
+    renderBlueSpaceList(state.lat, state.lng, list);
+    startLiveDistanceTracking(); // safe to call twice -- it's idempotent (checks geoWatchId)
+  }).catch(e => {
+    document.getElementById('blueV').textContent = 'Unavailable';
+    document.getElementById('blueSub').textContent = 'Network error: ' + e.message;
+    document.getElementById('blueCompassSvg').style.display = 'none';
+    console.error('blue space fetch failed', e);
   });
 
   getSpecies(lat,lng).then(({picks, radius}) => {
@@ -1466,6 +1616,13 @@ function startLiveDistanceTracking(){
         );
         state.green = resorted;
         renderGreenspaceList(state.lat, state.lng, resorted);
+      }
+      if(state.blue && state.blue.length){
+        const resortedBlue = [...state.blue].sort((a,b) =>
+          haversine(state.lat, state.lng, a.lat, a.lng) - haversine(state.lat, state.lng, b.lat, b.lng)
+        );
+        state.blue = resortedBlue;
+        renderBlueSpaceList(state.lat, state.lng, resortedBlue);
       }
       if(inTreesArea(state.lat, state.lng)){
         renderNearestTree(state.lat, state.lng);
