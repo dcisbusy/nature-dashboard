@@ -130,15 +130,20 @@ const LOCATION_COLORS = {
   'Other': '#8a8478'
 };
 
-// Small lightweight circular marker -- cheaper than default Leaflet pin icons
-// at this scale (160k+ potential markers).
+// Only 4 distinct icons ever needed (one per location category) -- build them
+// once and reuse, instead of creating a fresh divIcon object for every single
+// tree. With 160k+ trees this was the single biggest avoidable cost.
+const ICON_CACHE = {};
 function treeIcon(color){
-  return L.divIcon({
+  if(ICON_CACHE[color]) return ICON_CACHE[color];
+  const icon = L.divIcon({
     className: '',
     html: `<div style="width:10px;height:10px;border-radius:50%;background:${color};border:1px solid rgba(255,255,255,0.4);"></div>`,
     iconSize: [10,10],
     iconAnchor: [5,5]
   });
+  ICON_CACHE[color] = icon;
+  return icon;
 }
 
 const map = L.map('map', { zoomControl: false }).setView([51.45, -0.09], 12);
@@ -152,9 +157,9 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 const clusterGroup = L.markerClusterGroup({
   chunkedLoading: true,
   chunkProgress: (processed, total) => {
-    const pct = Math.round((processed/total)*100);
+    const pct = 50 + Math.round((processed/total)*50);
     document.getElementById('loadBarFill').style.width = pct + '%';
-    document.getElementById('loadText').textContent = `Loading trees… ${processed.toLocaleString()} / ${total.toLocaleString()}`;
+    document.getElementById('loadText').textContent = `Grouping trees on the map… ${processed.toLocaleString()} / ${total.toLocaleString()}`;
     if(processed >= total){
       setTimeout(() => document.getElementById('loadOverlay').classList.remove('visible'), 400);
     }
@@ -199,8 +204,64 @@ function parseCSV(text){
   return rows.filter(r => r.length && r[0].length);
 }
 
+function buildMarkersInBatches(lines, lookup, onProgress){
+  return new Promise(resolve => {
+    const markers = [];
+    const BATCH_SIZE = 4000;
+    let idx = 0;
+
+    function processBatch(){
+      const end = Math.min(idx + BATCH_SIZE, lines.length);
+      for(; idx < end; idx++){
+        const p = lines[idx].split('|');
+        const lat = parseFloat(p[1]), lon = parseFloat(p[2]);
+        if(isNaN(lat) || isNaN(lon)) continue;
+        const species = lookup.species[+p[3]];
+        const locationCat = lookup.locations[+p[4]];
+        const borough = lookup.boroughs[+p[5]];
+        const climate = p[6] || null;
+        const height = p[7] || null;
+        const canopy = p[8] || null;
+        const girth = p[9] || null;
+        const id = p[0];
+
+        const color = LOCATION_COLORS[locationCat] || LOCATION_COLORS['Other'];
+        const marker = L.marker([lat, lon], { icon: treeIcon(color) });
+
+        // Lazy popup content -- built only when tapped, not upfront for all 160k markers
+        marker.bindPopup(() => {
+          const details = [];
+          if(height) details.push(`${height}m tall`);
+          if(canopy) details.push(`${canopy}m canopy`);
+          if(girth) details.push(`${girth}cm girth`);
+          return `<div class="tree-popup">
+            <div class="name">${species}</div>
+            <div class="row">${locationCat} · ${borough}</div>
+            ${details.length ? `<div class="row">${details.join(', ')}</div>` : ''}
+            ${climate ? `<div class="row">2090 climate suitability: ${climate}</div>` : ''}
+            <div class="id">Tree ID ${id} (GLA London Datastore reference)</div>
+          </div>`;
+        });
+        markers.push(marker);
+      }
+      onProgress(idx, lines.length);
+      if(idx < lines.length){
+        // Yield to the browser between batches so the page stays responsive
+        // and can actually paint the progress update, instead of one long
+        // blocking loop that looks frozen the whole time.
+        requestAnimationFrame(processBatch);
+      } else {
+        resolve(markers);
+      }
+    }
+    requestAnimationFrame(processBatch);
+  });
+}
+
 async function loadTrees(){
   const statusEl = document.getElementById('statusPill');
+  const loadText = document.getElementById('loadText');
+  const loadBarFill = document.getElementById('loadBarFill');
   document.getElementById('loadOverlay').classList.add('visible');
   try{
     const [dataText, lookup] = await Promise.all([
@@ -210,39 +271,14 @@ async function loadTrees(){
     const lines = dataText.split('\n').filter(l => l.length);
     statusEl.textContent = `${lines.length.toLocaleString()} trees loaded`;
 
-    const markers = [];
-    for(const line of lines){
-      const p = line.split('|');
-      const lat = parseFloat(p[1]), lon = parseFloat(p[2]);
-      if(isNaN(lat) || isNaN(lon)) continue;
-      const species = lookup.species[+p[3]];
-      const locationCat = lookup.locations[+p[4]];
-      const borough = lookup.boroughs[+p[5]];
-      const climate = p[6] || null;
-      const height = p[7] || null;
-      const canopy = p[8] || null;
-      const girth = p[9] || null;
-      const id = p[0];
-
-      const color = LOCATION_COLORS[locationCat] || LOCATION_COLORS['Other'];
-      const marker = L.marker([lat, lon], { icon: treeIcon(color) });
-
-      // Lazy popup content -- built only when tapped, not upfront for all 160k markers
-      marker.bindPopup(() => {
-        const details = [];
-        if(height) details.push(`${height}m tall`);
-        if(canopy) details.push(`${canopy}m canopy`);
-        if(girth) details.push(`${girth}cm girth`);
-        return `<div class="tree-popup">
-          <div class="name">${species}</div>
-          <div class="row">${locationCat} · ${borough}</div>
-          ${details.length ? `<div class="row">${details.join(', ')}</div>` : ''}
-          ${climate ? `<div class="row">2090 climate suitability: ${climate}</div>` : ''}
-          <div class="id">Tree ID ${id} (GLA London Datastore reference)</div>
-        </div>`;
-      });
-      markers.push(marker);
-    }
+    // Construction (0-50% of the bar) and clustering (50-100%) are now both
+    // visible as continuous progress, instead of construction happening
+    // invisibly before the bar ever moves.
+    const markers = await buildMarkersInBatches(lines, lookup, (done, total) => {
+      const pct = Math.round((done/total)*50);
+      loadBarFill.style.width = pct + '%';
+      loadText.textContent = `Placing trees… ${done.toLocaleString()} / ${total.toLocaleString()}`;
+    });
 
     clusterGroup.addLayers(markers);
     map.addLayer(clusterGroup);
