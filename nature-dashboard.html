@@ -206,14 +206,15 @@ h1{
   overflow-x:auto;
   scroll-snap-type:x mandatory;
   gap:0;
-  margin:0 -1.05rem;
-  padding:0 1.05rem;
+  margin:0 -0.9rem;
+  padding:0 0.9rem;
   -webkit-overflow-scrolling:touch;
 }
 .swipe-panel{
   flex:0 0 100%;
+  min-width:0;
   scroll-snap-align:start;
-  padding-right:1.05rem;
+  padding-right:0.9rem;
   box-sizing:border-box;
 }
 .swipe-dots{
@@ -361,7 +362,7 @@ footer{
         </div>
       </div>
       <div id="greenRestList" style="margin-top:0.5rem;"></div>
-      <button id="compassToggle" class="mini-btn" style="display:none; margin-top:0.6rem;">Enable live compass</button>
+      <button id="compassToggle" class="mini-btn" style="display:none; margin-top:0.6rem;">Enable live compass (tap to grant permission)</button>
       <div class="sub" id="liveTrackStatus" style="margin-top:0.5rem;"></div>
     </div>
     <div class="card wide" id="blueCard">
@@ -419,7 +420,7 @@ footer{
   <footer>
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
-    Last edited <span id="buildStamp">24/8/26</span> · v2.6 · build b70b54
+    Last edited <span id="buildStamp">24/8/26</span> · v2.7 · build 1e494a
   </footer>
 </div>
 
@@ -449,21 +450,24 @@ function cardinalFromBearing(deg){
   return dirs[Math.round(deg / 22.5) % 16];
 }
 
-let targetBearing = null;
+let greenTargetBearing = null;
+let blueTargetBearing = null;
 let deviceHeading = 0;
 let compassActive = false;
 
 function updateCompassArrow(){
   const group = document.getElementById('compassArrowGroup');
-  if(!group || targetBearing === null) return;
-  const rotation = compassActive ? (targetBearing - deviceHeading + 360) % 360 : targetBearing;
+  if(!group || greenTargetBearing === null) return;
+  const rotation = compassActive ? (greenTargetBearing - deviceHeading + 360) % 360 : greenTargetBearing;
   group.setAttribute('transform', `rotate(${rotation} 23 23)`);
 }
 
 function updateBlueCompassArrow(bearing){
+  if(bearing !== null && bearing !== undefined) blueTargetBearing = bearing;
   const group = document.getElementById('blueCompassArrowGroup');
-  if(!group || bearing === null) return;
-  group.setAttribute('transform', `rotate(${bearing} 23 23)`);
+  if(!group || blueTargetBearing === null) return;
+  const rotation = compassActive ? (blueTargetBearing - deviceHeading + 360) % 360 : blueTargetBearing;
+  group.setAttribute('transform', `rotate(${rotation} 23 23)`);
 }
 
 function handleOrientation(e){
@@ -477,27 +481,44 @@ function handleOrientation(e){
     deviceHeading = heading;
     compassActive = true;
     updateCompassArrow();
+    updateBlueCompassArrow();
   }
+}
+
+let liveCompassAttached = false;
+function enableLiveCompass(){
+  if(liveCompassAttached) return;
+  liveCompassAttached = true;
+  window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+  window.addEventListener('deviceorientation', handleOrientation, true);
 }
 
 function setupCompassToggle(){
   const btn = document.getElementById('compassToggle');
-  if(!btn) return;
   const supported = 'DeviceOrientationEvent' in window;
-  if(!supported) return;
-  btn.style.display = 'inline-block';
-  btn.addEventListener('click', async () => {
-    if(typeof DeviceOrientationEvent.requestPermission === 'function'){
+  if(!supported){ if(btn) btn.style.display = 'none'; return; }
+
+  if(typeof DeviceOrientationEvent.requestPermission === 'function'){
+    // iOS requires an explicit user tap to grant motion/orientation permission --
+    // this can't be done automatically on page load, so a button is unavoidable
+    // here specifically (not a design choice, a platform security requirement).
+    if(!btn) return;
+    btn.style.display = 'inline-block';
+    btn.addEventListener('click', async () => {
       try{
         const res = await DeviceOrientationEvent.requestPermission();
         if(res !== 'granted'){ btn.textContent = 'Compass permission denied'; return; }
       }catch(e){ btn.textContent = 'Compass unavailable'; return; }
-    }
-    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-    window.addEventListener('deviceorientation', handleOrientation, true);
-    btn.textContent = 'Live compass on';
-    btn.disabled = true;
-  });
+      enableLiveCompass();
+      btn.textContent = 'Live compass on';
+      btn.disabled = true;
+    });
+  } else {
+    // Most other platforms (Android, desktop): no permission gate needed,
+    // so live compass is genuinely on by default with no tap required.
+    if(btn) btn.style.display = 'none';
+    enableLiveCompass();
+  }
 }
 
 function moonPhase(date){
@@ -1261,8 +1282,8 @@ function renderGreenspaceList(userLat, userLng, list){
   document.getElementById('greenV').textContent = nearest.name;
   const nearestDist = Math.round(haversine(userLat, userLng, nearest.lat, nearest.lng));
   const nearestTxt = nearestDist < 1000 ? nearestDist+'m' : (nearestDist/1000).toFixed(1)+'km';
-  targetBearing = bearingTo(userLat, userLng, nearest.lat, nearest.lng);
-  document.getElementById('greenSub').textContent = `${nearest.kind} · ${cardinalFromBearing(targetBearing)} · ${nearestTxt} away`;
+  greenTargetBearing = bearingTo(userLat, userLng, nearest.lat, nearest.lng);
+  document.getElementById('greenSub').textContent = `${nearest.kind} · ${cardinalFromBearing(greenTargetBearing)} · ${nearestTxt} away`;
   updateCompassArrow();
 
   const restEl = document.getElementById('greenRestList');
