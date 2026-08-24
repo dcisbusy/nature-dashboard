@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Tree Map — Field Notes</title>
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+<style>
+:root{
+  --ink:#161d24;
+  --ink-soft:#232d38;
+  --moss:#42604a;
+  --lichen:#9ab596;
+  --bone:#eae3d2;
+  --amber:#e2a13d;
+  --line:rgba(234,227,210,0.14);
+}
+*{box-sizing:border-box;}
+html,body{ margin:0; padding:0; height:100%; background:var(--ink); font-family:'Inter',-apple-system,sans-serif; }
+
+.topbar{
+  position:absolute; top:0; left:0; right:0; z-index:1000;
+  background:linear-gradient(to bottom, rgba(22,29,36,0.95), rgba(22,29,36,0));
+  padding:0.8rem 0.9rem 1.6rem;
+  display:flex; align-items:center; justify-content:space-between; gap:0.6rem;
+  pointer-events:none;
+}
+.topbar > *{ pointer-events:auto; }
+.back-link{
+  color:var(--bone);
+  text-decoration:none;
+  font-size:0.85rem;
+  background:rgba(22,29,36,0.85);
+  border:1px solid var(--line);
+  padding:0.5rem 0.8rem;
+  border-radius:8px;
+  white-space:nowrap;
+}
+.status-pill{
+  color:var(--bone);
+  font-family:'Space Mono',monospace;
+  font-size:0.68rem;
+  background:rgba(22,29,36,0.85);
+  border:1px solid var(--line);
+  padding:0.45rem 0.7rem;
+  border-radius:8px;
+  max-width:60vw;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+#map{ position:absolute; top:0; left:0; right:0; bottom:0; }
+
+/* Loading overlay while trees stream in */
+.load-overlay{
+  position:absolute; bottom:0.9rem; left:0.9rem; right:0.9rem; z-index:1000;
+  background:rgba(22,29,36,0.92);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:0.7rem 0.9rem;
+  color:var(--bone);
+  font-size:0.78rem;
+  display:none;
+}
+.load-overlay.visible{ display:block; }
+.load-bar{ height:4px; background:rgba(234,227,210,0.15); border-radius:2px; margin-top:0.4rem; overflow:hidden; }
+.load-bar-fill{ height:100%; width:0%; background:var(--amber); transition:width 0.2s; }
+
+/* Popup content styling */
+.leaflet-popup-content-wrapper{ background:var(--ink-soft); color:var(--bone); border-radius:10px; }
+.leaflet-popup-tip{ background:var(--ink-soft); }
+.tree-popup .name{ font-family:'Fraunces',serif; font-size:1.05rem; margin:0 0 0.2rem; }
+.tree-popup .sci{ font-style:italic; opacity:0.75; font-size:0.8rem; margin:0 0 0.5rem; }
+.tree-popup .row{ font-size:0.78rem; opacity:0.85; margin:0.15rem 0; }
+.tree-popup .id{ font-family:'Space Mono',monospace; font-size:0.68rem; opacity:0.6; margin-top:0.5rem; }
+
+.legend{
+  position:absolute; bottom:0.9rem; right:0.9rem; z-index:1000;
+  background:rgba(22,29,36,0.92);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:0.6rem 0.7rem;
+  color:var(--bone);
+  font-size:0.7rem;
+}
+.legend div{ display:flex; align-items:center; gap:0.4rem; margin:0.2rem 0; }
+.legend .dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+
+.user-dot{
+  width:16px; height:16px;
+  background:#4d9de0;
+  border:2px solid white;
+  border-radius:50%;
+  box-shadow:0 0 0 4px rgba(77,157,224,0.3);
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="nature-dashboard.html" class="back-link">← Dashboard</a>
+  <div class="status-pill" id="statusPill">Loading trees…</div>
+</div>
+
+<div id="map"></div>
+
+<div class="load-overlay" id="loadOverlay">
+  <span id="loadText">Loading 160,870 trees…</span>
+  <div class="load-bar"><div class="load-bar-fill" id="loadBarFill"></div></div>
+</div>
+
+<div class="legend">
+  <div><span class="dot" style="background:#e2a13d;"></span>Highways</div>
+  <div><span class="dot" style="background:#42604a;"></span>Parks</div>
+  <div><span class="dot" style="background:#9ab596;"></span>Housing</div>
+  <div><span class="dot" style="background:#8a8478;"></span>Other</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+const LOCATION_COLORS = {
+  'Highways': '#e2a13d',
+  'Parks': '#42604a',
+  'Housing': '#9ab596',
+  'Other': '#8a8478'
+};
+
+// Small lightweight circular marker -- cheaper than default Leaflet pin icons
+// at this scale (160k+ potential markers).
+function treeIcon(color){
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:10px;height:10px;border-radius:50%;background:${color};border:1px solid rgba(255,255,255,0.4);"></div>`,
+    iconSize: [10,10],
+    iconAnchor: [5,5]
+  });
+}
+
+const map = L.map('map', { zoomControl: false }).setView([51.45, -0.09], 12);
+L.control.zoom({ position: 'bottomleft' }).addTo(map);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom: 19
+}).addTo(map);
+
+const clusterGroup = L.markerClusterGroup({
+  chunkedLoading: true,
+  chunkProgress: (processed, total) => {
+    const pct = Math.round((processed/total)*100);
+    document.getElementById('loadBarFill').style.width = pct + '%';
+    document.getElementById('loadText').textContent = `Loading trees… ${processed.toLocaleString()} / ${total.toLocaleString()}`;
+    if(processed >= total){
+      setTimeout(() => document.getElementById('loadOverlay').classList.remove('visible'), 400);
+    }
+  },
+  maxClusterRadius: 60,
+  disableClusteringAtZoom: 17
+});
+
+let userMarker = null;
+
+function initUserLocation(){
+  if(!navigator.geolocation) return;
+  navigator.geolocation.watchPosition(
+    pos => {
+      const latlng = [pos.coords.latitude, pos.coords.longitude];
+      if(!userMarker){
+        userMarker = L.marker(latlng, {
+          icon: L.divIcon({ className:'', html:'<div class="user-dot"></div>', iconSize:[16,16], iconAnchor:[8,8] }),
+          zIndexOffset: 1000
+        }).addTo(map);
+        map.setView(latlng, 15);
+      } else {
+        userMarker.setLatLng(latlng);
+      }
+    },
+    err => console.error('geolocation failed on map page', err),
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+  );
+}
+
+function parseCSV(text){
+  // Same parser as the main dashboard, for the same pipe-delimited format
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for(let i=0; i<text.length; i++){
+    const c = text[i];
+    if(c === '\n'){ row.push(field); rows.push(row); row = []; field=''; }
+    else if(c === '\r'){ /* skip */ }
+    else { field += c; }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r => r.length && r[0].length);
+}
+
+async function loadTrees(){
+  const statusEl = document.getElementById('statusPill');
+  document.getElementById('loadOverlay').classList.add('visible');
+  try{
+    const [dataText, lookup] = await Promise.all([
+      fetch('trees-data.txt').then(r => { if(!r.ok) throw new Error('http '+r.status); return r.text(); }),
+      fetch('trees-lookup.json').then(r => { if(!r.ok) throw new Error('http '+r.status); return r.json(); })
+    ]);
+    const lines = dataText.split('\n').filter(l => l.length);
+    statusEl.textContent = `${lines.length.toLocaleString()} trees loaded`;
+
+    const markers = [];
+    for(const line of lines){
+      const p = line.split('|');
+      const lat = parseFloat(p[1]), lon = parseFloat(p[2]);
+      if(isNaN(lat) || isNaN(lon)) continue;
+      const species = lookup.species[+p[3]];
+      const locationCat = lookup.locations[+p[4]];
+      const borough = lookup.boroughs[+p[5]];
+      const climate = p[6] || null;
+      const height = p[7] || null;
+      const canopy = p[8] || null;
+      const girth = p[9] || null;
+      const id = p[0];
+
+      const color = LOCATION_COLORS[locationCat] || LOCATION_COLORS['Other'];
+      const marker = L.marker([lat, lon], { icon: treeIcon(color) });
+
+      // Lazy popup content -- built only when tapped, not upfront for all 160k markers
+      marker.bindPopup(() => {
+        const details = [];
+        if(height) details.push(`${height}m tall`);
+        if(canopy) details.push(`${canopy}m canopy`);
+        if(girth) details.push(`${girth}cm girth`);
+        return `<div class="tree-popup">
+          <div class="name">${species}</div>
+          <div class="row">${locationCat} · ${borough}</div>
+          ${details.length ? `<div class="row">${details.join(', ')}</div>` : ''}
+          ${climate ? `<div class="row">2090 climate suitability: ${climate}</div>` : ''}
+          <div class="id">Tree ID ${id} (GLA London Datastore reference)</div>
+        </div>`;
+      });
+      markers.push(marker);
+    }
+
+    clusterGroup.addLayers(markers);
+    map.addLayer(clusterGroup);
+  }catch(e){
+    statusEl.textContent = 'Failed to load tree data';
+    console.error('tree map data load failed', e);
+    document.getElementById('loadOverlay').classList.remove('visible');
+  }
+}
+
+// If the dashboard passed coordinates via URL, centre there immediately
+// rather than waiting for this page's own (possibly slower) GPS fix.
+const params = new URLSearchParams(window.location.search);
+const qLat = parseFloat(params.get('lat'));
+const qLng = parseFloat(params.get('lng'));
+if(!isNaN(qLat) && !isNaN(qLng)){
+  map.setView([qLat, qLng], 15);
+}
+
+initUserLocation();
+loadTrees();
+</script>
+</body>
+</html>

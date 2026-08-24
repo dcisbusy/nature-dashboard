@@ -127,13 +127,15 @@ h1{
 .green-rest-row{
   display:flex;
   justify-content:space-between;
+  align-items:center;
   gap:0.6rem;
   padding:0.4rem 0;
   border-top:1px solid var(--line);
   font-size:0.85rem;
 }
-.green-rest-row .name{ color: var(--bone); }
-.green-rest-row .meta{ color: rgba(234,227,210,0.6); font-size:0.78rem; white-space:nowrap; }
+.green-rest-row .name{ color: var(--bone); flex:1; min-width:0; }
+.green-rest-row .meta{ color: rgba(234,227,210,0.6); font-size:0.78rem; white-space:nowrap; display:flex; align-items:center; gap:0.4rem; }
+.mini-compass{ flex-shrink:0; }
 .mini-btn{
   margin-top:0.6rem;
   background:rgba(234,227,210,0.1);
@@ -386,9 +388,21 @@ footer{
     </div>
     <div class="card wide" id="treesCard" style="display:none;">
       <div class="k">Nearest tree <span style="opacity:0.6; font-weight:normal;">(approx. Lambeth/Southwark/Bromley/Croydon area)</span></div>
-      <div class="v" id="treesV">loading…</div>
-      <div class="sub" id="treesSub"></div>
+      <div class="green-row">
+        <svg id="treeCompassSvg" width="46" height="46" viewBox="0 0 46 46">
+          <circle cx="23" cy="23" r="21" fill="none" stroke="rgba(234,227,210,0.25)" stroke-width="1.5"/>
+          <text x="23" y="8" text-anchor="middle" font-size="7" fill="rgba(234,227,210,0.55)" font-family="Space Mono, monospace">N</text>
+          <g id="treeCompassArrowGroup" transform="rotate(0 23 23)">
+            <polygon points="23,9 27,25 23,21 19,25" fill="#8fa86a"/>
+          </g>
+        </svg>
+        <div>
+          <div class="v" id="treesV">loading…</div>
+          <div class="sub" id="treesSub"></div>
+        </div>
+      </div>
       <div class="sub" id="treesSub2" style="margin-top:0.3rem;"></div>
+      <a id="treesMapLink" href="trees-map.html" class="mini-btn" style="display:inline-block; margin-top:0.7rem; text-decoration:none;">View all trees on map</a>
     </div>
     <div class="card wide" id="speciesCard">
       <div class="k">Spotted nearby <span style="opacity:0.6; font-weight:normal;">(via iNaturalist, <span id="speciesRadiusLabel">2km</span>)</span></div>
@@ -422,7 +436,7 @@ footer{
   <footer>
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
-    Last edited <span id="buildStamp">24/8/26</span> · v2.8 · build 79e26d
+    Last edited <span id="buildStamp">24/8/26</span> · v3.0 · build 2484fc
   </footer>
 </div>
 
@@ -454,6 +468,7 @@ function cardinalFromBearing(deg){
 
 let greenTargetBearing = null;
 let blueTargetBearing = null;
+let treeTargetBearing = null;
 let deviceHeading = 0;
 let compassActive = false;
 
@@ -472,6 +487,37 @@ function updateBlueCompassArrow(bearing){
   group.setAttribute('transform', `rotate(${rotation} 23 23)`);
 }
 
+function updateTreeCompassArrow(bearing){
+  if(bearing !== null && bearing !== undefined) treeTargetBearing = bearing;
+  const group = document.getElementById('treeCompassArrowGroup');
+  if(!group || treeTargetBearing === null) return;
+  const rotation = compassActive ? (treeTargetBearing - deviceHeading + 360) % 360 : treeTargetBearing;
+  group.setAttribute('transform', `rotate(${rotation} 23 23)`);
+}
+
+// Small reusable compass for list rows (#2/#3 green & blue spaces, nearest tree).
+// Rendered with a data-bearing attribute holding its target bearing in degrees;
+// updateMiniCompasses() sweeps all of them and applies live device heading the
+// same way the two big compasses work, so every row rotates together.
+function miniCompassSvg(bearing, extraClass){
+  return `<svg class="mini-compass ${extraClass||''}" width="26" height="26" viewBox="0 0 26 26" data-bearing="${bearing}">
+    <circle cx="13" cy="13" r="12" fill="none" stroke="rgba(234,227,210,0.25)" stroke-width="1.2"/>
+    <g class="mini-compass-arrow" transform="rotate(${bearing} 13 13)">
+      <polygon points="13,5 16,15 13,12.5 10,15" fill="var(--amber)"/>
+    </g>
+  </svg>`;
+}
+
+function updateMiniCompasses(){
+  document.querySelectorAll('.mini-compass').forEach(svg => {
+    const bearing = parseFloat(svg.dataset.bearing);
+    if(isNaN(bearing)) return;
+    const rotation = compassActive ? (bearing - deviceHeading + 360) % 360 : bearing;
+    const arrow = svg.querySelector('.mini-compass-arrow');
+    if(arrow) arrow.setAttribute('transform', `rotate(${rotation} 13 13)`);
+  });
+}
+
 function handleOrientation(e){
   let heading = null;
   if(typeof e.webkitCompassHeading === 'number'){
@@ -484,6 +530,8 @@ function handleOrientation(e){
     compassActive = true;
     updateCompassArrow();
     updateBlueCompassArrow();
+    updateMiniCompasses();
+    updateTreeCompassArrow();
   }
 }
 
@@ -1296,9 +1344,10 @@ function renderGreenspaceList(userLat, userLng, list){
     const bearing = bearingTo(userLat, userLng, g.lat, g.lng);
     const row = document.createElement('div');
     row.className = 'green-rest-row';
-    row.innerHTML = `<span class="name">#${i+2} ${g.name}</span><span class="meta">${cardinalFromBearing(bearing)} · ${distTxt}</span>`;
+    row.innerHTML = `<span class="name">#${i+2} ${g.name}</span><span class="meta">${cardinalFromBearing(bearing)} · ${distTxt} ${miniCompassSvg(bearing)}</span>`;
     restEl.appendChild(row);
   });
+  updateMiniCompasses();
 }
 
 function renderBlueSpaceList(userLat, userLng, list){
@@ -1325,9 +1374,10 @@ function renderBlueSpaceList(userLat, userLng, list){
     const br = bearingTo(userLat, userLng, b.lat, b.lng);
     const row = document.createElement('div');
     row.className = 'green-rest-row';
-    row.innerHTML = `<span class="name">#${i+2} ${b.name}</span><span class="meta">${cardinalFromBearing(br)} · ${distTxt}</span>`;
+    row.innerHTML = `<span class="name">#${i+2} ${b.name}</span><span class="meta">${cardinalFromBearing(br)} · ${distTxt} ${miniCompassSvg(br)}</span>`;
     restEl.appendChild(row);
   });
+  updateMiniCompasses();
 }
 
 async function loadEverything(lat,lng){
@@ -1403,6 +1453,7 @@ async function loadEverything(lat,lng){
   }
 
   getGreenspaces(lat,lng).then(list => {
+    lastGreenFetch = { lat, lng, time: Date.now() };
     if(list && list.length){
       state.green = list;
       renderGreenspaceList(state.lat, state.lng, list);
@@ -1421,6 +1472,7 @@ async function loadEverything(lat,lng){
   });
 
   getBlueSpaces(lat,lng).then(list => {
+    lastBlueFetch = { lat, lng, time: Date.now() };
     state.blue = list;
     renderBlueSpaceList(state.lat, state.lng, list);
     startLiveDistanceTracking(); // safe to call twice -- it's idempotent (checks geoWatchId)
@@ -1576,18 +1628,22 @@ function inTreesArea(lat, lon){
 
 function renderNearestTree(lat, lon){
   const card = document.getElementById('treesCard');
+  const compassSvg = document.getElementById('treeCompassSvg');
   if(!inTreesArea(lat, lon)){
     card.style.display = 'none';
     return;
   }
   card.style.display = 'block';
+  document.getElementById('treesMapLink').href = `trees-map.html?lat=${lat}&lng=${lon}`;
   if(!treesData){
     document.getElementById('treesV').textContent = 'Loading tree data…';
+    compassSvg.style.display = 'none';
     return;
   }
   const result = findNearestTree(lat, lon);
   if(!result){
     document.getElementById('treesV').textContent = 'No tree found nearby';
+    compassSvg.style.display = 'none';
     return;
   }
   if(result.distance > 1000){
@@ -1598,11 +1654,15 @@ function renderNearestTree(lat, lon){
     document.getElementById('treesV').textContent = 'No covered tree data this close';
     document.getElementById('treesSub').textContent = `Nearest known tree is ${(result.distance/1000).toFixed(1)}km away — you may be just outside the covered boroughs, or in a data gap`;
     document.getElementById('treesSub2').textContent = '';
+    compassSvg.style.display = 'none';
     return;
   }
+  compassSvg.style.display = 'block';
   const { tree, distance } = result;
   const distTxt = distance < 1000 ? distance+'m' : (distance/1000).toFixed(1)+'km';
-  document.getElementById('treesV').textContent = `${tree.species} · ${distTxt} away`;
+  const bearing = bearingTo(lat, lon, tree.lat, tree.lon);
+  document.getElementById('treesV').textContent = `${tree.species} · ${cardinalFromBearing(bearing)} · ${distTxt} away`;
+  updateTreeCompassArrow(bearing);
   const details = [];
   if(tree.height) details.push(`${tree.height}m tall`);
   if(tree.canopy) details.push(`${tree.canopy}m canopy`);
@@ -1612,6 +1672,43 @@ function renderNearestTree(lat, lon){
 }
 
 let geoWatchId = null;
+let lastGreenFetch = { lat: null, lng: null, time: 0 };
+let lastBlueFetch = { lat: null, lng: null, time: 0 };
+let greenFetchInFlight = false;
+let blueFetchInFlight = false;
+const REFETCH_DISTANCE = 300; // metres moved before we bother re-querying
+const REFETCH_MIN_INTERVAL = 45000; // don't hammer Overpass more than this often
+
+function shouldRefetch(lastFetch, lat, lng){
+  if(lastFetch.lat === null) return true;
+  const moved = haversine(lat, lng, lastFetch.lat, lastFetch.lng);
+  const elapsed = Date.now() - lastFetch.time;
+  return moved > REFETCH_DISTANCE && elapsed > REFETCH_MIN_INTERVAL;
+}
+
+function refetchGreenIfNeeded(lat, lng){
+  if(greenFetchInFlight || !shouldRefetch(lastGreenFetch, lat, lng)) return;
+  greenFetchInFlight = true;
+  lastGreenFetch = { lat, lng, time: Date.now() };
+  getGreenspaces(lat, lng).then(list => {
+    state.green = list;
+    renderGreenspaceList(state.lat, state.lng, list); // use latest position, not the one queried with
+    rebuildPoolWith({green: (list && list[0]) || null});
+  }).catch(e => console.error('green re-fetch failed', e))
+    .finally(() => { greenFetchInFlight = false; });
+}
+
+function refetchBlueIfNeeded(lat, lng){
+  if(blueFetchInFlight || !shouldRefetch(lastBlueFetch, lat, lng)) return;
+  blueFetchInFlight = true;
+  lastBlueFetch = { lat, lng, time: Date.now() };
+  getBlueSpaces(lat, lng).then(list => {
+    state.blue = list;
+    renderBlueSpaceList(state.lat, state.lng, list);
+  }).catch(e => console.error('blue re-fetch failed', e))
+    .finally(() => { blueFetchInFlight = false; });
+}
+
 function startLiveDistanceTracking(){
   const statusEl = document.getElementById('liveTrackStatus');
   if(geoWatchId !== null) return;
@@ -1640,6 +1737,7 @@ function startLiveDistanceTracking(){
         state.green = resorted;
         renderGreenspaceList(state.lat, state.lng, resorted);
       }
+      refetchGreenIfNeeded(state.lat, state.lng);
       if(state.blue && state.blue.length){
         const resortedBlue = [...state.blue].sort((a,b) =>
           haversine(state.lat, state.lng, a.lat, a.lng) - haversine(state.lat, state.lng, b.lat, b.lng)
@@ -1647,6 +1745,7 @@ function startLiveDistanceTracking(){
         state.blue = resortedBlue;
         renderBlueSpaceList(state.lat, state.lng, resortedBlue);
       }
+      refetchBlueIfNeeded(state.lat, state.lng);
       if(inTreesArea(state.lat, state.lng)){
         renderNearestTree(state.lat, state.lng);
         if(!treesLoadPromise) loadTreesData().then(() => renderNearestTree(state.lat, state.lng));
