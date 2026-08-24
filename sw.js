@@ -1,9 +1,11 @@
-const CACHE_NAME = 'field-notes-shell-v1';
+const CACHE_NAME = 'field-notes-shell-v2';
 const SHELL_FILES = [
   './nature-dashboard.html',
   './manifest.json',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+  './trees-data.txt',
+  './trees-lookup.json'
 ];
 
 self.addEventListener('install', event => {

@@ -326,6 +326,12 @@ footer{
       <button id="compassToggle" class="mini-btn" style="display:none;">Enable live compass</button>
       <div class="sub" id="liveTrackStatus" style="margin-top:0.5rem;"></div>
     </div>
+    <div class="card wide" id="treesCard" style="display:none;">
+      <div class="k">Nearest tree <span style="opacity:0.6; font-weight:normal;">(approx. Lambeth/Southwark/Bromley/Croydon area)</span></div>
+      <div class="v" id="treesV">loading…</div>
+      <div class="sub" id="treesSub"></div>
+      <div class="sub" id="treesSub2" style="margin-top:0.3rem;"></div>
+    </div>
     <div class="card wide" id="speciesCard">
       <div class="k">Spotted nearby <span style="opacity:0.6; font-weight:normal;">(via iNaturalist, <span id="speciesRadiusLabel">2km</span>)</span></div>
       <div id="speciesList" class="tab-panel"></div>
@@ -383,7 +389,7 @@ footer{
   <footer>
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
-    Last edited <span id="buildStamp">24/8/26</span> · v2.3 · build 089e66
+    Last edited <span id="buildStamp">24/8/26</span> · v2.4 · build e9b3a0
   </footer>
 </div>
 
@@ -1115,6 +1121,13 @@ async function loadEverything(lat,lng){
 
   loadForageOfWeek(lat, lng).catch(e => console.error('forage load failed', e));
 
+  if(inTreesArea(lat, lng)){
+    renderNearestTree(lat, lng); // shows "loading tree data..." immediately
+    loadTreesData().then(() => renderNearestTree(lat, lng));
+  } else {
+    document.getElementById('treesCard').style.display = 'none';
+  }
+
   let weatherData = null, phase = 'Day';
   try{
     weatherData = await getWeather(lat,lng);
@@ -1249,6 +1262,126 @@ async function ipFallback(reason){
   }
 }
 
+// --- Nearby Trees (Lambeth, Southwark, Bromley, Croydon only) ---
+let treesData = null;      // array of {id, lat, lon, species, location, borough, climate, height, canopy, girth}
+let treesLookup = null;    // {species: [...], locations: [...], boroughs: [...]}
+let treesGrid = null;      // Map "latCell_lonCell" -> array of indices into treesData
+const TREE_GRID_SIZE = 0.005; // ~550m cells
+
+function gridKey(lat, lon){
+  return Math.floor(lat/TREE_GRID_SIZE) + '_' + Math.floor(lon/TREE_GRID_SIZE);
+}
+
+let treesLoadPromise = null;
+function loadTreesData(){
+  if(treesLoadPromise) return treesLoadPromise;
+  treesLoadPromise = Promise.all([
+    fetch('trees-data.txt').then(r => { if(!r.ok) throw new Error('http '+r.status); return r.text(); }),
+    fetch('trees-lookup.json').then(r => { if(!r.ok) throw new Error('http '+r.status); return r.json(); })
+  ]).then(([text, lookup]) => {
+    treesLookup = lookup;
+    const lines = text.split('\n').filter(l => l.length);
+    treesData = new Array(lines.length);
+    treesGrid = new Map();
+    for(let i=0; i<lines.length; i++){
+      const p = lines[i].split('|');
+      const lat = parseFloat(p[1]), lon = parseFloat(p[2]);
+      const tree = {
+        id: p[0], lat, lon,
+        species: lookup.species[+p[3]],
+        location: lookup.locations[+p[4]],
+        borough: lookup.boroughs[+p[5]],
+        climate: p[6] || null,
+        height: p[7] || null,
+        canopy: p[8] || null,
+        girth: p[9] || null
+      };
+      treesData[i] = tree;
+      const key = gridKey(lat, lon);
+      if(!treesGrid.has(key)) treesGrid.set(key, []);
+      treesGrid.get(key).push(i);
+    }
+    console.log('Loaded', treesData.length, 'trees into', treesGrid.size, 'grid cells');
+  }).catch(e => {
+    console.error('trees data failed to load', e);
+    treesData = null;
+  });
+  return treesLoadPromise;
+}
+
+function findNearestTree(lat, lon){
+  if(!treesData || !treesGrid) return null;
+  const cellLat = Math.floor(lat/TREE_GRID_SIZE);
+  const cellLon = Math.floor(lon/TREE_GRID_SIZE);
+  let best = null, bestD = Infinity;
+  // Search the current cell and expanding rings until we find at least one tree,
+  // then one extra ring beyond that to make sure we didn't miss a closer one just
+  // over a cell boundary.
+  for(let ring=0; ring<=4; ring++){
+    let foundAny = false;
+    for(let dLat=-ring; dLat<=ring; dLat++){
+      for(let dLon=-ring; dLon<=ring; dLon++){
+        if(Math.max(Math.abs(dLat),Math.abs(dLon)) !== ring) continue; // only the new ring's cells
+        const key = (cellLat+dLat) + '_' + (cellLon+dLon);
+        const bucket = treesGrid.get(key);
+        if(!bucket) continue;
+        foundAny = true;
+        for(const idx of bucket){
+          const t = treesData[idx];
+          const d = haversine(lat, lon, t.lat, t.lon);
+          if(d < bestD){ bestD = d; best = t; }
+        }
+      }
+    }
+    if(best && ring > 0) break; // one extra ring searched beyond first hit
+    if(!best && ring === 4) break;
+  }
+  return best ? { tree: best, distance: Math.round(bestD) } : null;
+}
+
+const TREES_BOUNDS = { minLat: 51.295, maxLat: 51.515, minLon: -0.157, maxLon: 0.150 };
+function inTreesArea(lat, lon){
+  return lat >= TREES_BOUNDS.minLat && lat <= TREES_BOUNDS.maxLat &&
+         lon >= TREES_BOUNDS.minLon && lon <= TREES_BOUNDS.maxLon;
+}
+
+function renderNearestTree(lat, lon){
+  const card = document.getElementById('treesCard');
+  if(!inTreesArea(lat, lon)){
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+  if(!treesData){
+    document.getElementById('treesV').textContent = 'Loading tree data…';
+    return;
+  }
+  const result = findNearestTree(lat, lon);
+  if(!result){
+    document.getElementById('treesV').textContent = 'No tree found nearby';
+    return;
+  }
+  if(result.distance > 1000){
+    // Bounding box is rectangular but the boroughs aren't -- this likely means
+    // we're in a gap (e.g. sparse Croydon coverage) or just outside real coverage
+    // despite passing the box check. Better to say so than report a misleadingly
+    // distant "nearest" tree as if it were meaningfully close.
+    document.getElementById('treesV').textContent = 'No covered tree data this close';
+    document.getElementById('treesSub').textContent = `Nearest known tree is ${(result.distance/1000).toFixed(1)}km away — you may be just outside the covered boroughs, or in a data gap`;
+    document.getElementById('treesSub2').textContent = '';
+    return;
+  }
+  const { tree, distance } = result;
+  const distTxt = distance < 1000 ? distance+'m' : (distance/1000).toFixed(1)+'km';
+  document.getElementById('treesV').textContent = `${tree.species} · ${distTxt} away`;
+  const details = [];
+  if(tree.height) details.push(`${tree.height}m tall`);
+  if(tree.canopy) details.push(`${tree.canopy}m canopy`);
+  if(tree.girth) details.push(`${tree.girth}cm girth`);
+  document.getElementById('treesSub').textContent = `${tree.location} · ${tree.borough}${details.length ? ' · ' + details.join(', ') : ''}`;
+  document.getElementById('treesSub2').textContent = `Tree ID ${tree.id} (GLA London Datastore reference)${tree.climate ? ' · 2090 climate suitability: ' + tree.climate : ''}`;
+}
+
 let geoWatchId = null;
 function startLiveDistanceTracking(){
   const statusEl = document.getElementById('liveTrackStatus');
@@ -1275,6 +1408,12 @@ function startLiveDistanceTracking(){
         targetBearing = bearingTo(state.lat, state.lng, g.lat, g.lng);
         document.getElementById('greenSub').textContent = `${g.kind} · ${cardinalFromBearing(targetBearing)} · ${liveTxt} away`;
         updateCompassArrow();
+      }
+      if(inTreesArea(state.lat, state.lng)){
+        renderNearestTree(state.lat, state.lng);
+        if(!treesLoadPromise) loadTreesData().then(() => renderNearestTree(state.lat, state.lng));
+      } else {
+        document.getElementById('treesCard').style.display = 'none';
       }
     },
     err => {
