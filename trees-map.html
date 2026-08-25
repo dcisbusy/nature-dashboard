@@ -6,8 +6,6 @@
 <title>Tree Map — Field Notes</title>
 <link rel="icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 <style>
 :root{
   --ink:#161d24;
@@ -121,7 +119,7 @@ html,body{ margin:0; padding:0; height:100%; background:var(--ink); font-family:
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/supercluster@8/dist/supercluster.js"></script>
 <script>
 const LOCATION_COLORS = {
   'Highways': '#e2a13d',
@@ -154,19 +152,75 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19
 }).addTo(map);
 
-const clusterGroup = L.markerClusterGroup({
-  chunkedLoading: true,
-  chunkProgress: (processed, total) => {
-    const pct = 50 + Math.round((processed/total)*50);
-    document.getElementById('loadBarFill').style.width = pct + '%';
-    document.getElementById('loadText').textContent = `Grouping trees on the map… ${processed.toLocaleString()} / ${total.toLocaleString()}`;
-    if(processed >= total){
-      setTimeout(() => document.getElementById('loadOverlay').classList.remove('visible'), 400);
+// Trees are clustered with Supercluster (a KD-tree spatial index) instead of
+// Leaflet.markercluster. Leaflet.markercluster builds its cluster tree from
+// every single marker up front regardless of what's on screen, which is fine
+// up to tens of thousands of points but becomes the dominant cost at 160k+
+// (this was most of the old ~20s load). Supercluster builds its index once
+// (fast — it's just spatial math, no DOM/marker objects) and then only
+// Markers actually visible in the current viewport are constructed, via
+// index.getClusters(bbox, zoom) on every pan/zoom. Clustering stays accurate
+// at every zoom level (the index always covers all 160k trees) — panning
+// doesn't lose data, it's just computed on demand instead of all at once.
+let superIndex = null;
+let treeRows = null;
+let lookupData = null;
+const clusterLayer = L.layerGroup();
+
+function clusterIcon(count){
+  const size = count < 10 ? 30 : count < 100 ? 38 : count < 1000 ? 46 : 54;
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:rgba(66,96,74,0.88);border:2px solid rgba(234,227,210,0.55);display:flex;align-items:center;justify-content:center;color:#eae3d2;font-family:'Space Mono',monospace;font-size:${size>44?'0.82rem':'0.7rem'};font-weight:700;">${count.toLocaleString()}</div>`,
+    iconSize: [size,size],
+    iconAnchor: [size/2, size/2]
+  });
+}
+
+function buildPopupHtml(row){
+  const species = lookupData.species[row.speciesIdx];
+  const borough = lookupData.boroughs[row.boroughIdx];
+  const details = [];
+  if(row.height) details.push(`${row.height}m tall`);
+  if(row.canopy) details.push(`${row.canopy}m canopy`);
+  if(row.girth) details.push(`${row.girth}cm girth`);
+  return `<div class="tree-popup">
+    <div class="name">${species}</div>
+    <div class="row">${row.cat} · ${borough}</div>
+    ${details.length ? `<div class="row">${details.join(', ')}</div>` : ''}
+    ${row.climate ? `<div class="row">2090 climate suitability: ${row.climate}</div>` : ''}
+    <div class="id">Tree ID ${row.id} (GLA London Datastore reference)</div>
+  </div>`;
+}
+
+// Re-renders only what's in the current viewport. Cheap enough (sub-frame)
+// to just clear and rebuild the layer every time rather than diffing.
+function updateClusters(){
+  if(!superIndex) return;
+  const b = map.getBounds();
+  const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+  const zoom = Math.round(map.getZoom());
+  const clusters = superIndex.getClusters(bbox, zoom);
+  clusterLayer.clearLayers();
+  for(const c of clusters){
+    const [lon, lat] = c.geometry.coordinates;
+    if(c.properties.cluster){
+      const count = c.properties.point_count;
+      const clusterId = c.properties.cluster_id;
+      const marker = L.marker([lat, lon], { icon: clusterIcon(count) });
+      marker.on('click', () => {
+        const expansionZoom = Math.min(superIndex.getClusterExpansionZoom(clusterId), 18);
+        map.setView([lat, lon], expansionZoom);
+      });
+      clusterLayer.addLayer(marker);
+    } else {
+      const row = treeRows[c.properties.i];
+      const marker = L.marker([lat, lon], { icon: treeIcon(LOCATION_COLORS[row.cat] || LOCATION_COLORS['Other']) });
+      marker.bindPopup(() => buildPopupHtml(row));
+      clusterLayer.addLayer(marker);
     }
-  },
-  maxClusterRadius: 60,
-  disableClusteringAtZoom: 17
-});
+  }
+}
 
 let userMarker = null;
 
@@ -204,11 +258,18 @@ function parseCSV(text){
   return rows.filter(r => r.length && r[0].length);
 }
 
-function buildMarkersInBatches(lines, lookup, onProgress){
+// Only extracts lat/lon/category (for the spatial index + dot color) plus a
+// row of the remaining fields (for lazy popup lookup by index) -- no Leaflet
+// Marker/Popup objects are constructed here at all. Batched via
+// requestAnimationFrame purely so the progress bar can paint and the page
+// stays responsive; the per-row work itself is cheap (no DOM/Leaflet object
+// construction), so this phase alone is a small fraction of the old load time.
+function parseTreesInBatches(lines, lookup, onProgress){
   return new Promise(resolve => {
-    const markers = [];
-    const BATCH_SIZE = 4000;
-    let idx = 0;
+    const points = new Array(lines.length);
+    const rows = new Array(lines.length);
+    const BATCH_SIZE = 8000;
+    let idx = 0, count = 0;
 
     function processBatch(){
       const end = Math.min(idx + BATCH_SIZE, lines.length);
@@ -216,42 +277,18 @@ function buildMarkersInBatches(lines, lookup, onProgress){
         const p = lines[idx].split('|');
         const lat = parseFloat(p[1]), lon = parseFloat(p[2]);
         if(isNaN(lat) || isNaN(lon)) continue;
-        const species = lookup.species[+p[3]];
-        const locationCat = lookup.locations[+p[4]];
-        const borough = lookup.boroughs[+p[5]];
-        const climate = p[6] || null;
-        const height = p[7] || null;
-        const canopy = p[8] || null;
-        const girth = p[9] || null;
-        const id = p[0];
-
-        const color = LOCATION_COLORS[locationCat] || LOCATION_COLORS['Other'];
-        const marker = L.marker([lat, lon], { icon: treeIcon(color) });
-
-        // Lazy popup content -- built only when tapped, not upfront for all 160k markers
-        marker.bindPopup(() => {
-          const details = [];
-          if(height) details.push(`${height}m tall`);
-          if(canopy) details.push(`${canopy}m canopy`);
-          if(girth) details.push(`${girth}cm girth`);
-          return `<div class="tree-popup">
-            <div class="name">${species}</div>
-            <div class="row">${locationCat} · ${borough}</div>
-            ${details.length ? `<div class="row">${details.join(', ')}</div>` : ''}
-            ${climate ? `<div class="row">2090 climate suitability: ${climate}</div>` : ''}
-            <div class="id">Tree ID ${id} (GLA London Datastore reference)</div>
-          </div>`;
-        });
-        markers.push(marker);
+        const cat = lookup.locations[+p[4]] || 'Other';
+        points[count] = { type:'Feature', properties:{ i: count }, geometry:{ type:'Point', coordinates:[lon, lat] } };
+        rows[count] = { id:p[0], speciesIdx:+p[3], cat, boroughIdx:+p[5], climate:p[6]||null, height:p[7]||null, canopy:p[8]||null, girth:p[9]||null };
+        count++;
       }
       onProgress(idx, lines.length);
       if(idx < lines.length){
-        // Yield to the browser between batches so the page stays responsive
-        // and can actually paint the progress update, instead of one long
-        // blocking loop that looks frozen the whole time.
         requestAnimationFrame(processBatch);
       } else {
-        resolve(markers);
+        points.length = count;
+        rows.length = count;
+        resolve({ points, rows });
       }
     }
     requestAnimationFrame(processBatch);
@@ -268,26 +305,35 @@ async function loadTrees(){
       fetch('trees-data.txt').then(r => { if(!r.ok) throw new Error('http '+r.status); return r.text(); }),
       fetch('trees-lookup.json').then(r => { if(!r.ok) throw new Error('http '+r.status); return r.json(); })
     ]);
+    lookupData = lookup;
     const lines = dataText.split('\n').filter(l => l.length);
     statusEl.textContent = `${lines.length.toLocaleString()} trees loaded`;
 
-    // Construction (0-50% of the bar) and clustering (50-100%) are now both
-    // visible as continuous progress, instead of construction happening
-    // invisibly before the bar ever moves.
-    const markers = await buildMarkersInBatches(lines, lookup, (done, total) => {
-      const pct = Math.round((done/total)*50);
+    const { points, rows } = await parseTreesInBatches(lines, lookup, (done, total) => {
+      const pct = Math.round((done/total)*85);
       loadBarFill.style.width = pct + '%';
-      loadText.textContent = `Placing trees… ${done.toLocaleString()} / ${total.toLocaleString()}`;
+      loadText.textContent = `Reading trees… ${done.toLocaleString()} / ${total.toLocaleString()}`;
     });
+    treeRows = rows;
 
-    clusterGroup.addLayers(markers);
-    map.addLayer(clusterGroup);
+    loadText.textContent = 'Indexing trees…';
+    loadBarFill.style.width = '92%';
+    // maxZoom:17 matches the old disableClusteringAtZoom:17 -- points stop
+    // clustering and render individually beyond that zoom.
+    superIndex = new Supercluster({ radius: 60, maxZoom: 17 }).load(points);
+
+    loadBarFill.style.width = '100%';
+    map.addLayer(clusterLayer);
+    updateClusters();
+    setTimeout(() => document.getElementById('loadOverlay').classList.remove('visible'), 300);
   }catch(e){
     statusEl.textContent = 'Failed to load tree data';
     console.error('tree map data load failed', e);
     document.getElementById('loadOverlay').classList.remove('visible');
   }
 }
+
+map.on('moveend', updateClusters);
 
 // If the dashboard passed coordinates via URL, centre there immediately
 // rather than waiting for this page's own (possibly slower) GPS fix.
