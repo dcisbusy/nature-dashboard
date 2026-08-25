@@ -8,9 +8,15 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <title>Field Notes — Nature Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://api.open-meteo.com">
+<link rel="preconnect" href="https://overpass-api.de">
+<link rel="preconnect" href="https://api.inaturalist.org">
+<link rel="preconnect" href="https://api.bigdatacloud.net">
+<link rel="preconnect" href="https://api.sunrisesunset.io">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap');
-
 :root{
   --ink:#161d24;
   --ink-soft:#232d38;
@@ -209,7 +215,7 @@ h1{
   display:flex;
   overflow-x:auto;
   scroll-snap-type:x mandatory;
-  gap:0;
+  gap:0.9rem;
   margin:0 -0.9rem;
   padding:0 0.9rem;
   -webkit-overflow-scrolling:touch;
@@ -218,7 +224,6 @@ h1{
   flex:0 0 100%;
   min-width:0;
   scroll-snap-align:start;
-  padding-right:0.9rem;
   box-sizing:border-box;
 }
 .swipe-dots{
@@ -436,7 +441,7 @@ footer{
   <footer>
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
-    Last edited <span id="buildStamp">24/8/26</span> · v3.0 · build 2484fc
+    Last edited <span id="buildStamp">25/8/26</span> · v3.1 · build a11yfx
   </footer>
 </div>
 
@@ -518,20 +523,44 @@ function updateMiniCompasses(){
   });
 }
 
-function handleOrientation(e){
-  let heading = null;
-  if(typeof e.webkitCompassHeading === 'number'){
-    heading = e.webkitCompassHeading; // iOS: already true-north relative
-  } else if(e.absolute && e.alpha !== null){
-    heading = 360 - e.alpha; // Android absolute orientation
-  }
-  if(heading !== null){
-    deviceHeading = heading;
-    compassActive = true;
+// Android dispatches both 'deviceorientationabsolute' and a plain
+// 'deviceorientation' (with e.absolute === true) for the same physical
+// sample on some browsers -- once we've seen a real absolute event, ignore
+// the plain-event fallback so each sample isn't processed twice.
+let sawAbsoluteEvent = false;
+
+// Sensor events can fire far faster than the display refreshes (up to ~60Hz
+// on Android), but each update below touches several DOM nodes including a
+// document-wide querySelectorAll. Coalescing to one requestAnimationFrame
+// per visual frame avoids doing that work multiple times for sensor samples
+// that arrive faster than the screen can show them.
+let compassUpdateScheduled = false;
+function scheduleCompassUpdate(){
+  if(compassUpdateScheduled) return;
+  compassUpdateScheduled = true;
+  requestAnimationFrame(() => {
+    compassUpdateScheduled = false;
     updateCompassArrow();
     updateBlueCompassArrow();
     updateMiniCompasses();
     updateTreeCompassArrow();
+  });
+}
+
+function handleOrientation(e){
+  let heading = null;
+  if(typeof e.webkitCompassHeading === 'number'){
+    heading = e.webkitCompassHeading; // iOS: already true-north relative
+  } else if(e.type === 'deviceorientationabsolute'){
+    sawAbsoluteEvent = true;
+    if(e.alpha !== null) heading = 360 - e.alpha; // Android absolute orientation
+  } else if(e.absolute && e.alpha !== null && !sawAbsoluteEvent){
+    heading = 360 - e.alpha; // fallback for browsers with no dedicated absolute event
+  }
+  if(heading !== null){
+    deviceHeading = heading;
+    compassActive = true;
+    scheduleCompassUpdate();
   }
 }
 
@@ -1090,7 +1119,7 @@ async function fetchWikiThumb(latinName){
 function speciesPanelHtml(photo, name, sub, note, linkHtml){
   return `
     <div class="species-row">
-      ${photo ? `<img class="species-thumb" src="${photo}" alt="${name}">` : `<div class="species-thumb"></div>`}
+      ${photo ? `<img class="species-thumb" src="${photo}" alt="${name}" loading="lazy" decoding="async">` : `<div class="species-thumb"></div>`}
       <div>
         <div class="v" style="font-size:1.05rem;">${name}</div>
         <div class="sub">${sub}</div>
@@ -1495,7 +1524,7 @@ async function loadEverything(lat,lng){
         row.rel = 'noopener';
         row.className = 'species-row';
         row.innerHTML = `
-          ${s.photo ? `<img class="species-thumb" src="${s.photo}" alt="${s.name}">` : `<div class="species-thumb"></div>`}
+          ${s.photo ? `<img class="species-thumb" src="${s.photo}" alt="${s.name}" loading="lazy" decoding="async">` : `<div class="species-thumb"></div>`}
           <div>
             <div class="v" style="font-size:1rem;">${s.name}</div>
             <div class="sub">${s.sci}${s.date ? ' · ' + s.date : ''}</div>

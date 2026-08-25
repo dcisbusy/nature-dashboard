@@ -1,4 +1,4 @@
-const CACHE_NAME = 'field-notes-shell-v3';
+const CACHE_NAME = 'field-notes-shell-v4';
 const SHELL_FILES = [
   './nature-dashboard.html',
   './trees-map.html',
@@ -29,11 +29,19 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
   // Never cache live data calls — weather, greenspace, species, moon/geo lookups
-  // always need fresh network data, not a stale cached response.
+  // always need fresh network data, not a stale cached response. Must cover
+  // every Overpass mirror (see OVERPASS_MIRRORS in nature-dashboard.html) --
+  // missing one means its POST requests fall into the cache-first branch below,
+  // where cache.put() throws on a non-GET request and silently breaks that
+  // mirror's fallback.
   const isLiveData = [
     'api.open-meteo.com',
     'overpass-api.de',
-    'api.gbif.org',
+    'overpass.kumi.systems',
+    'overpass.openstreetmap.fr',
+    'overpass.openstreetmap.ru',
+    'api.inaturalist.org',
+    'api.sunrisesunset.io',
     'ipwho.is',
     'api.bigdatacloud.net'
   ].some(host => url.hostname.includes(host)) || url.pathname.endsWith('activities.csv');
