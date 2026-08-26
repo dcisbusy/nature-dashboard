@@ -572,7 +572,7 @@ footer{
   <footer>
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
-    Last edited <span id="buildStamp">26/8/26</span> · v4.1 · build bb2bc8
+    Last edited <span id="buildStamp">26/8/26</span> · v4.2 · build 6fd489
   </footer>
 </div>
 
@@ -2095,9 +2095,40 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// A pushed update only replaces sw.js's SHELL_FILES cache once the browser
+// notices sw.js itself has changed and a new worker installs -- the
+// already-open page keeps running the old HTML/JS regardless, since a
+// reload is what actually picks up new content. skipWaiting()/
+// clients.claim() in sw.js mean the new worker takes over network requests
+// immediately without waiting for tabs to close, but that's orthogonal to
+// this: the banner exists purely to prompt the reload a person would
+// otherwise have no way to know they need.
+function showUpdateBanner(){
+  if(document.getElementById('swUpdateBanner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'swUpdateBanner';
+  banner.style.cssText = 'position:fixed; left:0; right:0; bottom:0; z-index:2000; background:var(--moss); color:var(--bone); padding:0.8rem 1rem; display:flex; align-items:center; justify-content:space-between; gap:0.8rem; font-family:"Inter",sans-serif; font-size:0.85rem; box-shadow:0 -2px 12px rgba(0,0,0,0.3);';
+  banner.innerHTML = '<span>A new version is ready.</span><button id="swUpdateBtn" style="background:var(--bone); color:var(--ink); border:none; padding:0.45rem 0.9rem; border-radius:7px; font-weight:600; font-size:0.8rem; cursor:pointer;">Refresh</button>';
+  document.body.appendChild(banner);
+  document.getElementById('swUpdateBtn').addEventListener('click', () => window.location.reload());
+}
+
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(err => console.error('SW registration failed', err));
+    navigator.serviceWorker.register('sw.js').then(registration => {
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if(!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          // navigator.serviceWorker.controller is only set once a worker has
+          // already taken control -- present here means this is a genuine
+          // update, not the very first install on a fresh visit.
+          if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
+            showUpdateBanner();
+          }
+        });
+      });
+    }).catch(err => console.error('SW registration failed', err));
   });
 }
 

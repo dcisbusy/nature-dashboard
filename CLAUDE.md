@@ -232,14 +232,31 @@ Columns: `id,title,body,phase,weather,min_temp,max_temp,needs_greenspace,needs_s
 
 ## Service worker caching strategy
 
-Cache-first (offline-capable): `nature-dashboard.html`, `trees-map.html`, `manifest.json`,
-icons, `trees-data.txt`, `trees-lookup.json`.
+Cache-first (offline-capable): `nature-dashboard.html`, `trees-map.html`,
+`sightings-map.html`, `perspective.html`, `manifest.json`, icons, `trees-data.txt`,
+`trees-lookup.json`.
 
 Always-network (never cached): `activities.csv` (meant to be edited often), and every live
 data API host (Open-Meteo, Overpass, iNaturalist, ipwho.is, BigDataCloud, sunrisesunset.io).
 
-**Bump `CACHE_NAME` in `sw.js` (currently `field-notes-shell-v3`) whenever `SHELL_FILES`
-changes**, or returning users will keep serving a stale cached shell.
+**Bump `CACHE_NAME` in `sw.js` whenever `SHELL_FILES` changes, or whenever any cached
+page's content changes meaningfully** (not just the file list) — the cache-first fetch
+handler never refreshes an already-cached entry on its own, so without a bump a returning
+user just keeps getting the stale version forever, pushed fix or not. This has been the
+standing practice all session; check the current value in `sw.js` rather than trusting any
+number written here, since it's bumped on nearly every commit.
+
+**"Update available" banner**: every page registers the service worker (idempotent — safe
+to call from all four even though only `nature-dashboard.html` used to) and listens for
+`registration.addEventListener('updatefound', ...)`. When the new worker reaches `installed`
+*and* `navigator.serviceWorker.controller` is already set (i.e. this is a genuine update,
+not the page's very first-ever SW install), a small fixed banner appears prompting a
+reload. This exists because a pushed update alone changes nothing for an already-open
+tab or a PWA that isn't reopened often — `skipWaiting()`/`clients.claim()` in `sw.js` mean
+the new worker takes over network requests immediately, but the already-loaded HTML/JS in
+the tab is still the old version until an actual reload happens, and there was previously
+no way for a person to know that had happened. `showUpdateBanner()` is duplicated per page
+(project convention, no shared JS module) rather than factored out.
 
 ## Tree map (`trees-map.html`) specifics
 

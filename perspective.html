@@ -411,6 +411,33 @@ tabWeeks.addEventListener('click', () => {
   tabWeeks.classList.add('active'); tabDeepTime.classList.remove('active');
   viewWeeks.classList.add('active'); viewDeepTime.classList.remove('active');
 });
+
+// Prompts a reload when a pushed update has installed -- see the fuller
+// comment on this same pattern in nature-dashboard.html.
+function showUpdateBanner(){
+  if(document.getElementById('swUpdateBanner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'swUpdateBanner';
+  banner.style.cssText = 'position:fixed; left:0; right:0; bottom:0; z-index:2000; background:var(--moss); color:var(--bone); padding:0.8rem 1rem; display:flex; align-items:center; justify-content:space-between; gap:0.8rem; font-family:"Inter",sans-serif; font-size:0.85rem; box-shadow:0 -2px 12px rgba(0,0,0,0.3);';
+  banner.innerHTML = '<span>A new version is ready.</span><button id="swUpdateBtn" style="background:var(--bone); color:var(--ink); border:none; padding:0.45rem 0.9rem; border-radius:7px; font-weight:600; font-size:0.8rem; cursor:pointer;">Refresh</button>';
+  document.body.appendChild(banner);
+  document.getElementById('swUpdateBtn').addEventListener('click', () => window.location.reload());
+}
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(registration => {
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if(!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
+            showUpdateBanner();
+          }
+        });
+      });
+    }).catch(err => console.error('SW registration failed', err));
+  });
+}
 </script>
 </body>
 </html>
