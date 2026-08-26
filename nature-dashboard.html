@@ -97,22 +97,26 @@ h1{
 
 /* season band — sits below the sky band, links through to the perspective page */
 .seasonband{
-  position:relative;
   display:block;
-  height:52px;
   border-radius:14px;
   margin:0.6rem 0 0.3rem;
   overflow:hidden;
   border:1px solid var(--line);
   text-decoration:none;
   color:inherit;
+  background:var(--ink-soft);
 }
-.seasonband .arc{ position:absolute; inset:0; display:flex; }
+.seasonband .season-visual{
+  position:relative;
+  height:44px;
+  display:flex;
+  /* One continuous gradient across the whole band, with each season's
+     colour placed at its quarter's midpoint -- adjacent seasons blend
+     smoothly through the boundary between them instead of meeting at a
+     hard seam (each quarter used to paint its own separate gradient). */
+  background:linear-gradient(90deg, #4d7c4d 12.5%, var(--amber) 37.5%, #b5651d 62.5%, var(--dusk) 87.5%);
+}
 .seasonband .quarter{ flex:1; position:relative; }
-.seasonband .quarter:nth-child(1){ background:linear-gradient(90deg, #33502f, #74a862); }
-.seasonband .quarter:nth-child(2){ background:linear-gradient(90deg, #b8862c, #e2a13d); }
-.seasonband .quarter:nth-child(3){ background:linear-gradient(90deg, #8a4a24, #c17a3f); }
-.seasonband .quarter:nth-child(4){ background:linear-gradient(90deg, #3d4a5c, #6c5a95); }
 .seasonband .quarter-label{
   position:absolute; top:5px; left:50%; transform:translateX(-50%);
   font-family:'Space Mono',monospace;
@@ -129,14 +133,22 @@ h1{
   background:#fff;
   box-shadow:0 0 10px 2px rgba(255,255,255,0.5);
 }
-.seasonband .season-caption{
-  position:absolute; bottom:5px; left:10px;
-  font-family:'Space Mono',monospace;
-  font-size:0.66rem;
-  color:rgba(255,255,255,0.85);
-  text-shadow:0 1px 3px rgba(0,0,0,0.5);
+.seasonband .season-text{
+  display:flex;
+  flex-direction:column;
+  gap:0.25rem;
+  padding:0.5rem 0.8rem;
 }
-.seasonband .season-caption.right{ left:auto; right:10px; }
+.seasonband .season-caption{
+  font-family:'Space Mono',monospace;
+  font-size:0.68rem;
+  color:rgba(234,227,210,0.75);
+}
+.seasonband .season-link{
+  font-family:'Space Mono',monospace;
+  font-size:0.68rem;
+  color:var(--lichen);
+}
 
 /* sightings mini-map card */
 .mini-map-card{
@@ -166,14 +178,6 @@ h1{
   border-radius:50%;
   box-shadow:0 0 0 5px rgba(77,157,224,0.3);
   transform:translate(-50%,-50%);
-}
-.mini-map-caption{
-  position:absolute;
-  bottom:8px; left:12px;
-  font-family:'Space Mono',monospace;
-  font-size:0.7rem;
-  color:rgba(255,255,255,0.9);
-  text-shadow:0 1px 3px rgba(0,0,0,0.6);
 }
 
 /* cards */
@@ -413,7 +417,6 @@ footer{
   <a href="sightings-map.html" id="sightingsMiniCard" class="mini-map-card">
     <img id="miniMapTile" alt="" loading="lazy">
     <div class="mini-map-dot"></div>
-    <div class="mini-map-caption" id="locLine">Locating you…</div>
   </a>
 
   <div class="skyband" id="skyband">
@@ -424,15 +427,17 @@ footer{
   </div>
 
   <a href="perspective.html" class="seasonband" id="seasonband">
-    <div class="arc" id="seasonArc">
+    <div class="season-visual" id="seasonArc">
       <div class="quarter"><div class="quarter-label">Spring</div></div>
       <div class="quarter"><div class="quarter-label">Summer</div></div>
       <div class="quarter"><div class="quarter-label">Autumn</div></div>
       <div class="quarter"><div class="quarter-label">Winter</div></div>
+      <div class="marker" id="seasonMarker"></div>
     </div>
-    <div class="marker" id="seasonMarker"></div>
-    <div class="season-caption" id="seasonCaption">—</div>
-    <div class="season-caption right">The Long Now →</div>
+    <div class="season-text">
+      <div class="season-caption" id="seasonCaption">—</div>
+      <div class="season-link">The Long Now →</div>
+    </div>
   </a>
 
   <div class="grid" id="cardGrid">
@@ -570,7 +575,8 @@ footer{
   <footer>
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
-    Last edited <span id="buildStamp">26/8/26</span> · v4.3 · build 18b580
+    <span id="locLine">Locating you…</span><br>
+    Last edited <span id="buildStamp">26/8/26</span> · v4.4 · build 49e260
   </footer>
 </div>
 

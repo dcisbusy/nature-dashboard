@@ -129,36 +129,45 @@ knowing why the current code looks the way it does.
 
 - **Order**: header (title only) → sightings mini-map card → sky band (time of day) →
   season band (time of year) → the 2-col card grid. `#locLine` (captured place name/coords)
-  lives inside the mini-map card now, not the header — same element id, just moved, so no
-  JS changes were needed beyond the card markup itself.
+  now lives in the **footer**, not overlaid on any card — it started in the header, moved
+  to the mini-map card, then moved again to the footer per the user's request to make it
+  more discreet. Still the same element id throughout, just relocated; the load/geolocation
+  JS that sets its text has never needed to change.
 - **Sightings mini-map card**: no heading, full-width/edge-to-edge, structured identically
   to the sky band (same fixed 92px height, no card padding, `border-radius`/`overflow:hidden`
-  directly on the `<a>` itself) rather than as a padded card containing an inset map —
-  the user asked for it to match the sky band's presentation exactly. A real OSM tile
-  (`a.tile.openstreetmap.org/{z}/{x}/{y}.png`, zoom 14) shown as a plain `<img>`, not a
-  Leaflet instance — one image request instead of pulling in the whole Leaflet library just
-  for a decorative preview on the main dashboard, which the user specifically wants kept
-  fast. The "you are here" dot is fixed at dead-centre via CSS (`top:50%;left:50%`), not
-  computed to the user's exact sub-tile pixel: `object-fit:cover` crops this square tile to
-  fill a wide/short box, and precisely centring an arbitrary point within that crop needs a
-  multi-tile mosaic to guarantee the point never lands outside the visible slice. This is a
-  preview, not a precise instrument — tapping the card opens `sightings-map.html` (real,
-  precise, interactive) for that. `#locLine` (captured place name/coords) is overlaid as a
-  bottom-left caption directly on the tile (light text + dark `text-shadow` for legibility
-  against whatever the map tile's colours happen to be), same treatment as the season
-  band's captions below.
-- **Season band**: sits directly below the sky band, same visual weight. Four fixed-order
-  quarters (Spring/Summer/Autumn/Winter, left to right, each with its own gradient) with a
-  marker sliding across the whole band based on how far through the *current* quarter
-  "now" is — see `getSeasonMarkers()`/`paintSeason()`. Equinox/solstice dates are fixed
-  calendar-day approximations (Mar 20 / Jun 21 / Sep 22 / Dec 21), good to within about a
-  day — same "acknowledged simple approximation" tolerance already used by `moonPhase()`,
-  not tied to any API. Left caption combines season/day/countdown
-  (`"Summer, day 67 · 27d to autumn equinox"`); right caption is a **static, always-visible
-  "The Long Now →"** label (not dynamic content) specifically so the link to
-  `perspective.html` is unambiguous at a glance — it used to double as the dynamic
-  countdown text, which the user felt didn't read clearly as a link. Moved here from a link
-  at the bottom of the page per an earlier request; the whole band is one `<a>`.
+  directly on the `<a>` itself) rather than as a padded card containing an inset map. A real
+  OSM tile (`a.tile.openstreetmap.org/{z}/{x}/{y}.png`, zoom 14) shown as a plain `<img>`,
+  not a Leaflet instance — one image request instead of pulling in the whole Leaflet library
+  just for a decorative preview on the main dashboard, which the user specifically wants
+  kept fast. The "you are here" dot is fixed at dead-centre via CSS (`top:50%;left:50%`),
+  not computed to the user's exact sub-tile pixel: `object-fit:cover` crops this square tile
+  to fill a wide/short box, and precisely centring an arbitrary point within that crop needs
+  a multi-tile mosaic to guarantee the point never lands outside the visible slice. This is
+  a preview, not a precise instrument — tapping the card opens `sightings-map.html` (real,
+  precise, interactive) for that. No caption text on the card itself now (see above).
+- **Season band**: `.season-visual` (the coloured band, 44px) and `.season-text` (a plain
+  two-line text block below it) are now **separate elements**, not one overlaid onto the
+  other. Originally both captions were absolute-positioned text overlaid directly on the
+  gradient (left-aligned season/day info, right-aligned "The Long Now →" link) — on a
+  narrow phone the left caption's text could run long enough to collide with the right one,
+  since both shared one row with no width constraint. Moving the text into its own row below
+  the gradient, stacked as two literal separate lines (`display:flex;flex-direction:column`),
+  makes overlap structurally impossible regardless of text length, and also freed the
+  gradient area from needing `text-shadow` legibility tricks since text no longer sits on
+  top of it. The gradient itself is now **one continuous `linear-gradient` across the whole
+  band** with each season's colour at its quarter's midpoint (12.5%/37.5%/62.5%/87.5%)
+  rather than four separately-painted quarters — CSS interpolates smoothly through the
+  25%/50%/75% boundaries this way, instead of each quarter's gradient hitting its own hard
+  edge at the seam (the previous look, which the user found "too sharply defined"). Four
+  fixed-order quarters (Spring/Summer/Autumn/Winter, left to right) still exist as
+  positioning containers for the label text and the marker's `left:%` reference frame, they
+  just no longer carry their own background. Equinox/solstice dates are fixed calendar-day
+  approximations (Mar 20 / Jun 21 / Sep 22 / Dec 21), good to within about a day — same
+  "acknowledged simple approximation" tolerance already used by `moonPhase()`, not tied to
+  any API. Bottom line 1: season/day/countdown (`"Summer, day 67 · 27d to autumn equinox"`).
+  Bottom line 2: a static, always-visible "The Long Now →" label (not dynamic content) —
+  moved here from a link at the bottom of the page per an earlier request; the whole band
+  is one `<a>`.
 - **Manual location entry** (`manualLocToggle`/`manualLocBlock`) moved from just below the
   header to just above the footer, and restyled as a small muted underlined text button
   rather than a `.mini-btn` pill — deliberately de-emphasised ("discreet") since it's a
@@ -414,6 +423,27 @@ no way for a person to know that had happened. `showUpdateBanner()` is duplicate
   rings + real distance stats for Moon/Sun/nearest star/galactic centre/Andromeda) —
   replaced at the user's request; if revisited, that code is in git history (the commit
   that introduced `perspective.html`).
+  - **Format/idea credited to Tim Urban's "Your Life in Weeks" on Wait But Why**
+    (waitbutwhy.com/2014/05/life-weeks.html), linked in the on-page outro at the user's
+    request. This is the well-known origin of the "one box per week of a life" visualisation
+    generally, worth keeping the credit if this section is ever restructured.
+  - **A user report that "only about a third of boxes look lit up in August" could not be
+    reproduced.** Checked directly: `.weeks-row-boxes` genuinely renders exactly 52
+    `.week-box` children per row at both mobile (375px) and desktop widths, with no
+    horizontal overflow/clipping (`scrollWidth === clientWidth` in both cases) — so the
+    user's own alternative theory ("maybe boxes are cut off, not 52 per line") didn't hold
+    up under inspection either. The percentage for the default birthday (24 June 1982) on a
+    given day computed correctly (e.g. 55.9% / age 44.2 on 26 Aug 2026) — nowhere near "a
+    third," and there's no calendar-year or financial-year logic anywhere in `renderWeeks()`
+    to explain that guess (it's purely `(now - birthdate) / msPerWeek`, unrelated to which
+    month it currently is). Applied a defensive `min-width:0` +
+    `grid-template-columns:repeat(52, minmax(0,1fr))` anyway (the same overflow-guard
+    category as the dashboard's original `.card{min-width:0}` fix), and added an explicit
+    age figure to the caption (e.g. "You're 44.2 years old") specifically so a viewer can
+    immediately sanity-check the birthdate math against their own known age. If this is
+    still reported after that ships, get the *actual* birthdate/sex toggle state and
+    ideally a screenshot from the person seeing it — the discrepancy could not be found by
+    inspecting the code or a live render with the default inputs.
 
 ## Open items / explicitly deferred
 

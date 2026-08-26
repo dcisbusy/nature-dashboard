@@ -240,8 +240,9 @@ h1{
 }
 .weeks-row-boxes{
   flex:1;
+  min-width:0;
   display:grid;
-  grid-template-columns:repeat(52, 1fr);
+  grid-template-columns:repeat(52, minmax(0,1fr));
   gap:1.5px;
 }
 .week-box{
@@ -262,6 +263,7 @@ h1{
   line-height:1.6;
   color:rgba(234,227,210,0.75);
 }
+.weeks-outro a{ color:var(--lichen); }
 </style>
 </head>
 <body>
@@ -304,9 +306,12 @@ h1{
     <div class="weeks-outro">
       Every row is a year, every box a week. Filled boxes are weeks already lived; the
       bright box is this one. The total is an average across a whole population at a point
-      in time (ONS UK male life expectancy at birth) — not a prediction, a countdown, or
-      medical advice about any one life. It's a prompt for how few of these boxes there
-      really are, not a forecast of how many are left.
+      in time (ONS UK life expectancy at birth) — not a prediction, a countdown, or medical
+      advice about any one life. It's a prompt for how few of these boxes there really are,
+      not a forecast of how many are left.<br><br>
+      Idea and format from Tim Urban's
+      <a href="https://waitbutwhy.com/2014/05/life-weeks.html" target="_blank" rel="noopener">Your Life in Weeks</a>
+      on Wait But Why.
     </div>
   </div>
 </div>
@@ -416,8 +421,9 @@ function renderWeeks(birthdateStr){
   document.getElementById('weeksGrid').innerHTML = html;
 
   const pct = Math.min(100, weeksLived / totalWeeks * 100).toFixed(1);
+  const ageYears = (weeksLived / (365.25/7)).toFixed(1);
   document.getElementById('weeksCaption').innerHTML =
-    `You've lived <strong>${weeksLived.toLocaleString()}</strong> of an estimated <strong>${totalWeeks.toLocaleString()}</strong> weeks (~${currentLifeYears}-year UK ${currentSexLabel} life expectancy at birth) — <strong>${pct}%</strong>.`;
+    `You're <strong>${ageYears}</strong> years old · you've lived <strong>${weeksLived.toLocaleString()}</strong> of an estimated <strong>${totalWeeks.toLocaleString()}</strong> weeks (~${currentLifeYears}-year UK ${currentSexLabel} life expectancy at birth) — <strong>${pct}%</strong>.`;
 }
 
 renderTimeline();
