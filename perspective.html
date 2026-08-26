@@ -112,7 +112,7 @@ h1{
   transform:translate(-50%,-50%);
   box-shadow:0 0 0 4px rgba(226,161,61,0.15);
 }
-.tl-event.left .tl-dot{ left:calc(46% + 14px); }
+.tl-event.left .tl-dot{ left:calc(100% + 14px); }
 .tl-event.right .tl-dot{ left:-14px; }
 .tl-when{
   font-family:'Space Mono',monospace;
@@ -197,6 +197,22 @@ h1{
   font-family:'Inter',sans-serif;
   font-size:0.85rem;
 }
+.sex-toggle{ display:flex; gap:0.4rem; }
+.sex-btn{
+  background:var(--ink-soft);
+  border:1px solid var(--line);
+  color:rgba(234,227,210,0.65);
+  font-family:'Inter',sans-serif;
+  font-size:0.8rem;
+  padding:0.4rem 0.7rem;
+  border-radius:6px;
+  cursor:pointer;
+}
+.sex-btn.active{
+  background:var(--moss);
+  color:var(--bone);
+  border-color:transparent;
+}
 .weeks-caption{
   font-size:0.85rem;
   line-height:1.6;
@@ -278,6 +294,10 @@ h1{
   <div class="view" id="viewWeeks">
     <div class="weeks-controls">
       <label>Birthday <input type="date" id="birthdateInput" value="1982-06-24"></label>
+      <div class="sex-toggle">
+        <button class="sex-btn active" id="sexMaleBtn" data-years="79">Male</button>
+        <button class="sex-btn" id="sexFemaleBtn" data-years="83">Female</button>
+      </div>
     </div>
     <div class="weeks-caption" id="weeksCaption"></div>
     <div class="weeks-grid" id="weeksGrid"></div>
@@ -324,6 +344,12 @@ const DEEP_TIME_EVENTS = [
 // to clear it, so only the genuinely-crowded pairs are ever adjusted.
 const TIMELINE_IDEAL_HEIGHT = 2200;
 const TIMELINE_MIN_GAP = 92;
+// The first event sits at raw position 0, but its box is vertically centred
+// on that position (translateY(-50%)) -- with no offset, half its own
+// height extends upward past the top of the timeline container and into
+// the tab bar above it. This pushes every position down far enough to
+// clear that (roughly one label's half-height, plus a margin of safety).
+const TIMELINE_TOP_OFFSET = 45;
 
 function renderTimeline(){
   const el = document.getElementById('timeline');
@@ -335,10 +361,10 @@ function renderTimeline(){
   let prev = -Infinity;
   for(const raw of rawPx){
     const pos = Math.max(raw, prev + TIMELINE_MIN_GAP);
-    px.push(pos);
+    px.push(pos + TIMELINE_TOP_OFFSET);
     prev = pos;
   }
-  const nowPx = Math.max(prev + TIMELINE_MIN_GAP, TIMELINE_IDEAL_HEIGHT) + 30;
+  const nowPx = Math.max(prev + TIMELINE_MIN_GAP, TIMELINE_IDEAL_HEIGHT) + 30 + TIMELINE_TOP_OFFSET;
   el.style.height = (nowPx + 70) + 'px';
 
   el.innerHTML = DEEP_TIME_EVENTS.map((e, i) => {
@@ -360,18 +386,20 @@ function renderTimeline(){
   </div>`;
 }
 
-// ~79 years is a commonly-cited current ONS UK male life-expectancy-at-birth
-// figure -- an average across a population at a point in time, not a
-// prediction. Weeks/year uses 365.25/7 to account for leap years.
-const AVG_UK_MALE_LIFE_YEARS = 79;
+// 79/83 are commonly-cited current ONS UK life-expectancy-at-birth figures
+// (male/female) -- an average across a population at a point in time, not
+// a prediction for any one life. Weeks/year uses 365.25/7 to account for
+// leap years.
 const WEEKS_PER_ROW = 52;
+let currentLifeYears = 79;
+let currentSexLabel = 'male';
 
 function renderWeeks(birthdateStr){
   const birthdate = new Date(birthdateStr + 'T00:00:00');
   const now = new Date();
   const msPerWeek = 7 * 86400000;
   const weeksLived = Math.max(0, Math.floor((now - birthdate) / msPerWeek));
-  const totalWeeks = Math.round(AVG_UK_MALE_LIFE_YEARS * 365.25 / 7);
+  const totalWeeks = Math.round(currentLifeYears * 365.25 / 7);
   const rows = Math.ceil(totalWeeks / WEEKS_PER_ROW);
 
   let html = '';
@@ -389,7 +417,7 @@ function renderWeeks(birthdateStr){
 
   const pct = Math.min(100, weeksLived / totalWeeks * 100).toFixed(1);
   document.getElementById('weeksCaption').innerHTML =
-    `You've lived <strong>${weeksLived.toLocaleString()}</strong> of an estimated <strong>${totalWeeks.toLocaleString()}</strong> weeks (~${AVG_UK_MALE_LIFE_YEARS}-year UK male life expectancy at birth) — <strong>${pct}%</strong>.`;
+    `You've lived <strong>${weeksLived.toLocaleString()}</strong> of an estimated <strong>${totalWeeks.toLocaleString()}</strong> weeks (~${currentLifeYears}-year UK ${currentSexLabel} life expectancy at birth) — <strong>${pct}%</strong>.`;
 }
 
 renderTimeline();
@@ -397,6 +425,18 @@ renderWeeks(document.getElementById('birthdateInput').value);
 document.getElementById('birthdateInput').addEventListener('change', e => {
   if(e.target.value) renderWeeks(e.target.value);
 });
+
+const sexMaleBtn = document.getElementById('sexMaleBtn');
+const sexFemaleBtn = document.getElementById('sexFemaleBtn');
+function selectSex(btn, label){
+  currentLifeYears = parseInt(btn.dataset.years, 10);
+  currentSexLabel = label;
+  sexMaleBtn.classList.toggle('active', btn === sexMaleBtn);
+  sexFemaleBtn.classList.toggle('active', btn === sexFemaleBtn);
+  renderWeeks(document.getElementById('birthdateInput').value);
+}
+sexMaleBtn.addEventListener('click', () => selectSex(sexMaleBtn, 'male'));
+sexFemaleBtn.addEventListener('click', () => selectSex(sexFemaleBtn, 'female'));
 
 const tabDeepTime = document.getElementById('tabDeepTime');
 const tabWeeks = document.getElementById('tabWeeks');

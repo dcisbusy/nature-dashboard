@@ -140,24 +140,18 @@ h1{
 
 /* sightings mini-map card */
 .mini-map-card{
+  position:relative;
   display:block;
-  background:var(--ink-soft);
-  border:1px solid var(--line);
+  height:92px;
   border-radius:14px;
-  padding:0.85rem 0.9rem;
   margin-top:1.2rem;
+  overflow:hidden;
+  border:1px solid var(--line);
   text-decoration:none;
   color:inherit;
-}
-.mini-map-wrap{
-  position:relative;
-  height:92px;
-  border-radius:10px;
-  overflow:hidden;
-  margin-top:0.5rem;
   background:var(--ink);
 }
-.mini-map-wrap img{
+.mini-map-card img{
   width:100%; height:100%;
   object-fit:cover;
   display:block;
@@ -173,7 +167,14 @@ h1{
   box-shadow:0 0 0 5px rgba(77,157,224,0.3);
   transform:translate(-50%,-50%);
 }
-.mini-map-card .sub{ margin-top:0.5rem; }
+.mini-map-caption{
+  position:absolute;
+  bottom:8px; left:12px;
+  font-family:'Space Mono',monospace;
+  font-size:0.7rem;
+  color:rgba(255,255,255,0.9);
+  text-shadow:0 1px 3px rgba(0,0,0,0.6);
+}
 
 /* cards */
 .grid{
@@ -410,12 +411,9 @@ footer{
   </header>
 
   <a href="sightings-map.html" id="sightingsMiniCard" class="mini-map-card">
-    <div class="k">Sightings map</div>
-    <div class="mini-map-wrap">
-      <img id="miniMapTile" alt="" loading="lazy">
-      <div class="mini-map-dot"></div>
-    </div>
-    <div class="locline sub" id="locLine">Locating you…</div>
+    <img id="miniMapTile" alt="" loading="lazy">
+    <div class="mini-map-dot"></div>
+    <div class="mini-map-caption" id="locLine">Locating you…</div>
   </a>
 
   <div class="skyband" id="skyband">
@@ -434,7 +432,7 @@ footer{
     </div>
     <div class="marker" id="seasonMarker"></div>
     <div class="season-caption" id="seasonCaption">—</div>
-    <div class="season-caption right" id="seasonCountdown">The Long Now →</div>
+    <div class="season-caption right">The Long Now →</div>
   </a>
 
   <div class="grid" id="cardGrid">
@@ -572,7 +570,7 @@ footer{
   <footer>
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
-    Last edited <span id="buildStamp">26/8/26</span> · v4.2.1 · build 03f9fa
+    Last edited <span id="buildStamp">26/8/26</span> · v4.3 · build 18b580
   </footer>
 </div>
 
@@ -907,9 +905,7 @@ function paintSeason(now){
   const next = markers[idx+1];
   const daysUntil = Math.ceil((next.date - now) / 86400000);
   const captionEl = document.getElementById('seasonCaption');
-  const countdownEl = document.getElementById('seasonCountdown');
-  if(captionEl) captionEl.textContent = `${seasonName} · day ${dayNum}`;
-  if(countdownEl) countdownEl.textContent = `${daysUntil}d to ${next.name} →`;
+  if(captionEl) captionEl.textContent = `${seasonName}, day ${dayNum} · ${daysUntil}d to ${next.name}`;
 }
 
 async function reverseGeocode(lat,lng){

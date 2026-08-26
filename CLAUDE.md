@@ -131,25 +131,34 @@ knowing why the current code looks the way it does.
   season band (time of year) → the 2-col card grid. `#locLine` (captured place name/coords)
   lives inside the mini-map card now, not the header — same element id, just moved, so no
   JS changes were needed beyond the card markup itself.
-- **Sightings mini-map card**: a real OSM tile (`a.tile.openstreetmap.org/{z}/{x}/{y}.png`,
-  zoom 14) shown as a plain `<img>`, not a Leaflet instance — one image request instead of
-  pulling in the whole Leaflet library just for a decorative preview on the main dashboard,
-  which the user specifically wants kept fast. The "you are here" dot is fixed at dead-
-  centre via CSS (`top:50%;left:50%`), not computed to the user's exact sub-tile pixel:
-  `object-fit:cover` crops this square tile to fill a wide/short box, and precisely
-  centring an arbitrary point within that crop needs a multi-tile mosaic to guarantee the
-  point never lands outside the visible slice. This is a preview, not a precise instrument
-  — tapping the card opens `sightings-map.html` (real, precise, interactive) for that.
-  Whole card is an `<a>` linking there with `?lat=&lng=` once a position is known.
+- **Sightings mini-map card**: no heading, full-width/edge-to-edge, structured identically
+  to the sky band (same fixed 92px height, no card padding, `border-radius`/`overflow:hidden`
+  directly on the `<a>` itself) rather than as a padded card containing an inset map —
+  the user asked for it to match the sky band's presentation exactly. A real OSM tile
+  (`a.tile.openstreetmap.org/{z}/{x}/{y}.png`, zoom 14) shown as a plain `<img>`, not a
+  Leaflet instance — one image request instead of pulling in the whole Leaflet library just
+  for a decorative preview on the main dashboard, which the user specifically wants kept
+  fast. The "you are here" dot is fixed at dead-centre via CSS (`top:50%;left:50%`), not
+  computed to the user's exact sub-tile pixel: `object-fit:cover` crops this square tile to
+  fill a wide/short box, and precisely centring an arbitrary point within that crop needs a
+  multi-tile mosaic to guarantee the point never lands outside the visible slice. This is a
+  preview, not a precise instrument — tapping the card opens `sightings-map.html` (real,
+  precise, interactive) for that. `#locLine` (captured place name/coords) is overlaid as a
+  bottom-left caption directly on the tile (light text + dark `text-shadow` for legibility
+  against whatever the map tile's colours happen to be), same treatment as the season
+  band's captions below.
 - **Season band**: sits directly below the sky band, same visual weight. Four fixed-order
   quarters (Spring/Summer/Autumn/Winter, left to right, each with its own gradient) with a
   marker sliding across the whole band based on how far through the *current* quarter
   "now" is — see `getSeasonMarkers()`/`paintSeason()`. Equinox/solstice dates are fixed
   calendar-day approximations (Mar 20 / Jun 21 / Sep 22 / Dec 21), good to within about a
   day — same "acknowledged simple approximation" tolerance already used by `moonPhase()`,
-  not tied to any API. Also carries the link to `perspective.html` ("The Long Now →") —
-  moved here from a link at the bottom of the page per the user's request; the whole band
-  is one `<a>`.
+  not tied to any API. Left caption combines season/day/countdown
+  (`"Summer, day 67 · 27d to autumn equinox"`); right caption is a **static, always-visible
+  "The Long Now →"** label (not dynamic content) specifically so the link to
+  `perspective.html` is unambiguous at a glance — it used to double as the dynamic
+  countdown text, which the user felt didn't read clearly as a link. Moved here from a link
+  at the bottom of the page per an earlier request; the whole band is one `<a>`.
 - **Manual location entry** (`manualLocToggle`/`manualLocBlock`) moved from just below the
   header to just above the footer, and restyled as a small muted underlined text button
   rather than a `.mini-btn` pill — deliberately de-emphasised ("discreet") since it's a
@@ -375,16 +384,36 @@ no way for a person to know that had happened. `showUpdateBanner()` is duplicate
     generous natural spacing). The container's height is set from JS
     (`el.style.height`), not fixed in CSS, since the real height depends on how much
     gap-enforcement pushing was needed.
-- **Life in weeks**: a grid of one box per week of an average UK male lifespan (~79 years,
-  ONS-ish life-expectancy-at-birth figure — an average across a population, explicitly
-  captioned as not a prediction), one row per year, editable birthday (`<input
-  type="date">`, defaults to 1982-06-24). ~4,100 boxes generated via a single template-
-  string `innerHTML` write, not per-box DOM calls — cheap even at this count (compare
-  trees-map's 160k markers). The current week gets its own highlighted class distinct from
-  "already lived" vs "not yet lived". Originally built as a galactic "cosmic address"
-  view instead (nested rings + real distance stats for Moon/Sun/nearest star/galactic
-  centre/Andromeda) — replaced at the user's request; if revisited, that code is in git
-  history (the commit that introduced `perspective.html`).
+  - **Two more real bugs, both from a user screenshot, neither caught by prior verification**:
+    (1) `.tl-event.left .tl-dot{ left:calc(46% + 14px); }` used the SAME number (46%) that
+    the label box's own `width` is set to, but in a completely different reference frame —
+    a `left` percentage on an absolutely-positioned child is relative to the *parent's*
+    (the label box's) width, not the timeline's, so `46%` landed the dot roughly a third of
+    the way into the box instead of at its right edge. Fixed to `left:calc(100% + 14px)` —
+    100% of the box's own width reaches its edge, then +14px reaches the centre line, same
+    as the (already-correct) right-side rule. Verified by measuring every dot's rendered
+    centre against the centre line directly: all 20 now land within 1px of it, versus the
+    original bug where they sat mid-text. (2) The very first event sits at raw position 0,
+    but `.tl-event`'s `transform:translateY(-50%)` centres its box ON that position, so
+    roughly half the box's own height was extending upward past the timeline container's
+    top edge and into the tab bar above it — worst for the Big Bang entry specifically,
+    since it's one of the taller two-line labels. Fixed with a flat `TIMELINE_TOP_OFFSET`
+    (45px) added to every position. Both bugs are a reminder that this timeline's positions
+    were never actually screenshotted/eyeballed by a human until this round — measuring
+    `top` values or gaps (as the min-gap fix's own verification did) doesn't catch a
+    percentage-reference-frame bug or a translateY-vs-container-edge bug, since both are
+    about pixels *within* an element's own box, not its position relative to siblings.
+- **Life in weeks**: a grid of one box per week of an average UK lifespan — **male (79
+  years) by default, female (83 years) via a toggle**, both commonly-cited ONS
+  life-expectancy-at-birth figures, explicitly captioned as population averages, not a
+  prediction for any one life. One row per year, editable birthday (`<input type="date">`,
+  defaults to 1982-06-24). ~4,100 boxes generated via a single template-string `innerHTML`
+  write, not per-box DOM calls — cheap even at this count (compare trees-map's 160k
+  markers). The current week gets its own highlighted class distinct from "already lived"
+  vs "not yet lived". Originally built as a galactic "cosmic address" view instead (nested
+  rings + real distance stats for Moon/Sun/nearest star/galactic centre/Andromeda) —
+  replaced at the user's request; if revisited, that code is in git history (the commit
+  that introduced `perspective.html`).
 
 ## Open items / explicitly deferred
 
