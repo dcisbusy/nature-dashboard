@@ -15,6 +15,7 @@ knowing why the current code looks the way it does.
 |---|---|
 | `nature-dashboard.html` | Main app — everything except the tree map |
 | `trees-map.html` | Separate Leaflet.js page: all 160,870 trees on an interactive map |
+| `spaces-map.html` | Separate Leaflet.js page: pannable map of green/blue spaces (OSM/Overpass, queried live per-viewport, not a bulk dataset like trees) with an optional toggleable layer of recent iNaturalist sightings (last 30 days, also per-viewport). Linked from the dashboard's green-spaces card. |
 | `sw.js` | Service worker — caches the app shell for offline/PWA use |
 | `manifest.json` | PWA install config |
 | `icons/icon-192.png`, `icons/icon-512.png` | App icons |
@@ -191,21 +192,67 @@ changes**, or returning users will keep serving a stale cached shell.
 
 ## Tree map (`trees-map.html`) specifics
 
-- Leaflet 1.9.4 + Leaflet.markercluster 1.5.3, loaded from unpkg CDN — **not** cached by
-  the service worker, so this page requires an internet connection (unlike the rest of
-  the app, which degrades to cached data offline).
+- Leaflet 1.9.4 + **Supercluster 8.0.1** (both pinned to exact versions), loaded from
+  unpkg CDN — **not** cached by the service worker, so this page requires an internet
+  connection (unlike the rest of the app, which degrades to cached data offline).
+- Originally used Leaflet.markercluster, which builds its cluster tree from every single
+  marker up front regardless of viewport — fine up to tens of thousands of points but the
+  dominant cost of the ~20s load at 160k+. Replaced with Supercluster: it builds a spatial
+  index once (fast — just spatial math, no DOM/marker objects) and only constructs Leaflet
+  markers for what's actually in the current viewport, recomputed via
+  `index.getClusters(bbox, zoom)` on every `moveend`. Clustering stays accurate at every
+  zoom level since the index always covers all 160k trees — panning doesn't lose data.
 - Only **4 shared icon objects** exist (one per location category: Highways/Parks/
   Housing/Other) — reused across all 160,870 markers via `ICON_CACHE`. Originally created
   one icon per tree, which was a major performance bug.
-- Marker construction runs in **async batches of 4,000 via `requestAnimationFrame`**, not
-  one blocking synchronous loop — this was the other major performance fix. Progress bar
-  covers both phases: 0-50% construction, 50-100% clustering (Leaflet.markercluster's own
-  `chunkedLoading`).
+- Parsing runs in **async batches of 8,000 via `requestAnimationFrame`**, not one blocking
+  synchronous loop — extracts only lat/lon/category into the Supercluster index plus a
+  parallel `treeRows` array (for lazy popup lookup by index); no Leaflet Marker/Popup
+  objects are constructed until a point is actually visible.
 - Accepts `?lat=&lng=` URL params (passed from the dashboard's "View all trees on map"
   link) to center immediately, rather than waiting for its own possibly-slower GPS fix.
 - Real GLA tree IDs are shown (`uniqueid` column from the source data) — the source's own
   documentation notes these are for mapping purposes only, not linked to any external
   borough management system.
+- Calls `map.invalidateSize()` on `whenReady` and on `visibilitychange` — see the Leaflet
+  gotcha noted under Spaces map below, which applies here too.
+
+## Spaces map (`spaces-map.html`) specifics
+
+- Pannable map of green/blue spaces plus an optional iNaturalist sightings layer. Unlike
+  the tree map, there is no equivalent bulk dataset to pre-process (parks/water are
+  irregular polygons, not a clean point export London Datastore-style) — so both layers
+  are **queried live from the current viewport** via the same multi-mirror Overpass setup
+  as the dashboard's green/blue cards (`OVERPASS_MIRRORS`, duplicated in this file per the
+  project's no-shared-JS-module convention) and iNaturalist's bbox observation search
+  (`swlat/swlng/nelat/nelng`).
+- **Zoom-gated** below zoom 13 for both layers (`MIN_ZOOM_GREENBLUE`/`MIN_ZOOM_SIGHTINGS`)
+  — a bbox that wide would make for a slow/huge Overpass query and an overwhelming number
+  of markers, same reasoning as the dashboard's fixed 2-3km `around:` radius just expressed
+  as a zoom floor instead (this page has no single fixed center to radius from). Shows a
+  "zoom in further" hint instead of querying; does **not** clear already-loaded data when
+  you zoom back out, only skips the refetch.
+- **Refetch avoidance via padded bounds**: each successful fetch is scoped to the current
+  viewport padded well beyond it (`bounds.pad()`), and a `moveend` only triggers a new
+  fetch once you've panned/zoomed outside the last-fetched padded area — otherwise small
+  pans reuse the same data instead of hammering Overpass/iNaturalist on every drag.
+- **iNaturalist sightings default to last 30 days, `verifiable=true`, capped at
+  `per_page=200`** — a city center can easily have more observations than that in a
+  month; this is a deliberate cap to avoid flooding the map, not a bug if a dense area caps
+  out. No clustering (unlike the tree map) since per-viewport counts are always ≤200 —
+  clustering only became necessary at trees' 160k scale.
+- Both layers are rebuilt from scratch (`clearLayers()` + repopulate) on every successful
+  fetch rather than diffed against the previous set — same "cheap enough, not worth the
+  complexity" tradeoff already used by the tree map's cluster layer.
+- **Leaflet gotcha**: `L.map()` measures its container's pixel size at construction time.
+  If the tab isn't actually visible/composited at that exact moment (backgrounded tab, PWA
+  restored from background), Leaflet can cache a `0x0` size — every `getBounds()` call
+  after that returns a degenerate box (`south === north`, `west === east`), which silently
+  breaks every bbox-based fetch on the page with no error thrown. Confirmed by direct
+  `getBoundingClientRect()`/`getBounds()` inspection while building this page. Fixed with
+  `map.invalidateSize()` called once on `map.whenReady()` and again on every
+  `visibilitychange` back to visible. Applied to `trees-map.html` too since it has the
+  identical construction pattern.
 
 ## Open items / explicitly deferred
 

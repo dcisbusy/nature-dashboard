@@ -389,6 +389,7 @@ footer{
         </div>
       </div>
       <div id="greenRestList" style="margin-top:0.5rem;"></div>
+      <a id="spacesMapLink" href="spaces-map.html" class="mini-btn" style="display:inline-block; margin-top:0.7rem; text-decoration:none;">View green &amp; blue spaces on map</a>
       <button id="compassToggle" class="mini-btn" style="display:none; margin-top:0.6rem;">Enable live compass (tap to grant permission)</button>
       <div class="sub" id="liveTrackStatus" style="margin-top:0.5rem;"></div>
     </div>
@@ -467,7 +468,7 @@ footer{
   <footer>
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
-    Last edited <span id="buildStamp">25/8/26</span> · v3.3 · build d2c1b4
+    Last edited <span id="buildStamp">25/8/26</span> · v3.4 · build fd81bb
   </footer>
 </div>
 
@@ -1457,6 +1458,7 @@ function renderBlueSpaceList(userLat, userLng, list){
 async function loadEverything(lat,lng){
   state.lat = lat; state.lng = lng;
   document.getElementById('locLine').textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  document.getElementById('spacesMapLink').href = `spaces-map.html?lat=${lat}&lng=${lng}`;
   reverseGeocode(lat,lng).then(place => {
     document.getElementById('locLine').textContent = `${place} · ${lat.toFixed(3)}, ${lng.toFixed(3)}`;
   });

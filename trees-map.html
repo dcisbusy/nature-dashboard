@@ -344,6 +344,17 @@ if(!isNaN(qLat) && !isNaN(qLng)){
   map.setView([qLat, qLng], 15);
 }
 
+// Leaflet measures its container's pixel size at init time -- if the tab
+// isn't actually visible/composited yet at that moment (backgrounded tab,
+// PWA restored from background, etc.) it can cache a 0x0 size, which would
+// make updateClusters()'s getBounds() calls return a degenerate box and
+// silently show zero trees. Cheap enough to just always re-check on load
+// and whenever the tab becomes visible again.
+map.whenReady(() => map.invalidateSize());
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden) map.invalidateSize();
+});
+
 initUserLocation();
 loadTrees();
 </script>

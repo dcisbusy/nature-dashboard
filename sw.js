@@ -1,7 +1,8 @@
-const CACHE_NAME = 'field-notes-shell-v6';
+const CACHE_NAME = 'field-notes-shell-v7';
 const SHELL_FILES = [
   './nature-dashboard.html',
   './trees-map.html',
+  './spaces-map.html',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
