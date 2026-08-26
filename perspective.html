@@ -85,7 +85,7 @@ h1{
   position:relative;
   margin:1rem 0 2rem;
   padding:0.5rem 0;
-  min-height:1500px;
+  min-height:1500px; /* JS sets the real height once positions are computed */
 }
 .timeline::before{
   content:'';
@@ -134,8 +134,8 @@ h1{
 }
 .tl-now{
   position:absolute;
-  left:50%; bottom:-0.5rem;
-  transform:translate(-50%, 50%);
+  left:50%;
+  transform:translate(-50%, -50%);
   text-align:center;
 }
 .tl-now .tl-now-dot{
@@ -172,51 +172,80 @@ h1{
   color:rgba(234,227,210,0.75);
 }
 
-/* --- Galaxy --- */
-.cosmic-note{
-  font-size:0.78rem;
-  color:rgba(234,227,210,0.55);
-  margin-bottom:1rem;
-  font-style:italic;
-}
-.rings-wrap{
+/* --- Life in weeks --- */
+.weeks-controls{
   display:flex;
-  justify-content:center;
-  margin:1.5rem 0;
+  align-items:center;
+  gap:0.6rem;
+  flex-wrap:wrap;
+  margin-bottom:1.1rem;
 }
-.stat-grid{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:0.7rem;
-  margin-top:1.6rem;
+.weeks-controls label{
+  font-size:0.8rem;
+  color:rgba(234,227,210,0.7);
+  display:flex;
+  align-items:center;
+  gap:0.5rem;
 }
-.stat-tile{
+.weeks-controls input[type=date]{
+  color-scheme: dark;
   background:var(--ink-soft);
+  color:var(--bone);
   border:1px solid var(--line);
-  border-radius:12px;
-  padding:0.85rem 0.9rem;
+  border-radius:6px;
+  padding:0.4rem 0.5rem;
+  font-family:'Inter',sans-serif;
+  font-size:0.85rem;
 }
-.stat-tile .k{
+.weeks-caption{
+  font-size:0.85rem;
+  line-height:1.6;
+  color:rgba(234,227,210,0.8);
+  margin-bottom:1.4rem;
+}
+.weeks-caption strong{ color:var(--bone); font-weight:600; }
+.weeks-grid{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.weeks-row{
+  display:flex;
+  align-items:center;
+  gap:0.5rem;
+}
+.weeks-row-label{
+  width:1.9rem;
+  flex-shrink:0;
+  text-align:right;
   font-family:'Space Mono',monospace;
-  font-size:0.62rem;
-  letter-spacing:0.08em;
-  text-transform:uppercase;
-  color:var(--lichen);
-  margin-bottom:0.3rem;
+  font-size:0.56rem;
+  color:rgba(234,227,210,0.35);
 }
-.stat-tile .v{
-  font-family:'Fraunces',serif;
-  font-size:1.15rem;
-  font-weight:500;
-  line-height:1.25;
+.weeks-row-boxes{
+  flex:1;
+  display:grid;
+  grid-template-columns:repeat(52, 1fr);
+  gap:1.5px;
 }
-.stat-tile .sub{
-  font-size:0.72rem;
-  color:rgba(234,227,210,0.6);
-  margin-top:0.25rem;
-  line-height:1.4;
+.week-box{
+  height:5px;
+  border-radius:1px;
+  background:rgba(234,227,210,0.12);
 }
-.stat-tile.wide{ grid-column:1 / -1; }
+.week-box.lived{ background:var(--amber); }
+.week-box.current{
+  background:var(--bone);
+  box-shadow:0 0 4px 1px rgba(234,227,210,0.7);
+}
+.weeks-outro{
+  margin-top:2rem;
+  padding-top:1.2rem;
+  border-top:1px solid var(--line);
+  font-size:0.85rem;
+  line-height:1.6;
+  color:rgba(234,227,210,0.75);
+}
 </style>
 </head>
 <body>
@@ -229,7 +258,7 @@ h1{
 
   <div class="tabbar">
     <button class="tab-btn active" id="tabDeepTime">Deep time</button>
-    <button class="tab-btn" id="tabGalaxy">Our place in the galaxy</button>
+    <button class="tab-btn" id="tabWeeks">Life in weeks</button>
   </div>
 
   <div class="view active" id="viewDeepTime">
@@ -240,38 +269,24 @@ h1{
       13.8 billion years long. Positions above are on a logarithmic scale (equal distances
       represent equal <em>multiples</em> of time, not equal amounts) — a true-to-scale
       linear version would put all of human history into a space thinner than this text.
+      A few adjacent points in the densest, earliest cluster are nudged apart slightly so
+      their labels don't overlap, which understates — if anything — just how compressed
+      that cluster really is.
     </div>
   </div>
 
-  <div class="view" id="viewGalaxy">
-    <div class="cosmic-note">Illustrative, not to scale — the real distances span roughly 30 orders of magnitude and can't honestly be drawn as one picture.</div>
-    <div class="rings-wrap" id="rings"></div>
-    <div class="stat-grid">
-      <div class="stat-tile">
-        <div class="k">Moon</div>
-        <div class="v">384,400 km</div>
-        <div class="sub">~1.3 light-seconds away (average — its orbit is elliptical)</div>
-      </div>
-      <div class="stat-tile">
-        <div class="k">Sun</div>
-        <div class="v">150 million km</div>
-        <div class="sub">1 AU · ~8.3 light-minutes away</div>
-      </div>
-      <div class="stat-tile">
-        <div class="k">Nearest star</div>
-        <div class="v">4.25 light-years</div>
-        <div class="sub">Proxima Centauri · light left it in 2020, arrives now</div>
-      </div>
-      <div class="stat-tile">
-        <div class="k">Galactic centre</div>
-        <div class="v">~26,000 ly</div>
-        <div class="sub">We orbit it from the Orion Spur, a minor arm</div>
-      </div>
-      <div class="stat-tile wide">
-        <div class="k">Nearest large galaxy</div>
-        <div class="v">Andromeda · 2.5 million light-years</div>
-        <div class="sub">The most distant thing visible to the naked eye — its light is 2.5 million years old</div>
-      </div>
+  <div class="view" id="viewWeeks">
+    <div class="weeks-controls">
+      <label>Birthday <input type="date" id="birthdateInput" value="1982-06-24"></label>
+    </div>
+    <div class="weeks-caption" id="weeksCaption"></div>
+    <div class="weeks-grid" id="weeksGrid"></div>
+    <div class="weeks-outro">
+      Every row is a year, every box a week. Filled boxes are weeks already lived; the
+      bright box is this one. The total is an average across a whole population at a point
+      in time (ONS UK male life expectancy at birth) — not a prediction, a countdown, or
+      medical advice about any one life. It's a prompt for how few of these boxes there
+      really are, not a forecast of how many are left.
     </div>
   </div>
 </div>
@@ -279,82 +294,122 @@ h1{
 <script>
 const DEEP_TIME_EVENTS = [
   { yearsAgo: 13.8e9, label:'The Big Bang', note:'Space, time, and matter begin.' },
-  { yearsAgo: 13.6e9, label:'First galaxies', note:'The earliest galaxies condense out of primordial gas.' },
-  { yearsAgo: 4.6e9, label:'The Sun ignites', note:'Our Solar System forms from a collapsing cloud of dust and gas.' },
-  { yearsAgo: 4.5e9, label:'Earth forms', note:'Our planet accretes from the debris left over around the young Sun.' },
-  { yearsAgo: 4.0e9, label:'First life', note:'Simple single-celled organisms appear in early oceans.' },
-  { yearsAgo: 2.4e9, label:'The Great Oxidation', note:'Photosynthesis floods the atmosphere with oxygen for the first time.' },
-  { yearsAgo: 2.0e9, label:'Complex cells', note:'Cells with a nucleus (eukaryotes) evolve.' },
-  { yearsAgo: 0.8e9, label:'Multicellular life', note:'Cells begin cooperating as single organisms.' },
-  { yearsAgo: 540e6, label:'The Cambrian Explosion', note:'Most major animal body plans appear in a geological eyeblink.' },
-  { yearsAgo: 470e6, label:'Plants reach land', note:'The first land plants take root.' },
-  { yearsAgo: 375e6, label:'Life crawls ashore', note:'The first four-limbed animals leave the water.' },
+  { yearsAgo: 13.6e9, label:'First galaxies', note:'Earliest galaxies condense out of gas.' },
+  { yearsAgo: 4.6e9, label:'The Sun ignites', note:'Our Solar System forms.' },
+  { yearsAgo: 4.5e9, label:'Earth forms', note:'' },
+  { yearsAgo: 4.0e9, label:'First life', note:'Simple single-celled life appears.' },
+  { yearsAgo: 2.4e9, label:'The Great Oxidation', note:'Oxygen floods the atmosphere.' },
+  { yearsAgo: 2.0e9, label:'Complex cells', note:'Cells gain a nucleus.' },
+  { yearsAgo: 0.8e9, label:'Multicellular life', note:'' },
+  { yearsAgo: 540e6, label:'The Cambrian Explosion', note:'Most animal body-plans appear at once.' },
+  { yearsAgo: 470e6, label:'Plants reach land', note:'' },
+  { yearsAgo: 375e6, label:'Life crawls ashore', note:'First four-limbed animals leave the water.' },
   { yearsAgo: 230e6, label:'Dinosaurs appear', note:'' },
   { yearsAgo: 200e6, label:'First mammals', note:'' },
-  { yearsAgo: 66e6, label:"The dinosaurs' end", note:'An asteroid impact ends their age — birds are the survivors.' },
+  { yearsAgo: 66e6, label:"The dinosaurs' end", note:'Asteroid impact ends their reign.' },
   { yearsAgo: 55e6, label:'First primates', note:'' },
-  { yearsAgo: 7e6, label:'Human/chimp split', note:'Our lineage diverges from that of chimpanzees.' },
+  { yearsAgo: 7e6, label:'Human/chimp split', note:'' },
   { yearsAgo: 300e3, label:'Homo sapiens', note:'Our species appears in Africa.' },
   { yearsAgo: 12e3, label:'Agriculture begins', note:'' },
   { yearsAgo: 5e3, label:'Writing invented', note:'' },
   { yearsAgo: 200, label:'Industrial revolution', note:'' }
 ];
 
+// True log-scale positions leave several of the earliest, most closely-
+// spaced events (13.8bya vs 13.6bya; 4.6bya vs 4.5bya; etc.) close enough
+// that their multi-line labels overlap regardless of alternating sides --
+// found by inspecting actual rendered positions, not by eye. This walks the
+// (already chronologically sorted) list top to bottom and pushes any label
+// that's closer than TIMELINE_MIN_GAP to the previous one down just enough
+// to clear it, so only the genuinely-crowded pairs are ever adjusted.
+const TIMELINE_IDEAL_HEIGHT = 2200;
+const TIMELINE_MIN_GAP = 92;
+
 function renderTimeline(){
   const el = document.getElementById('timeline');
   const maxLog = Math.log10(DEEP_TIME_EVENTS[0].yearsAgo);
   const minLog = Math.log10(200) - 0.3; // leave a little headroom below the last real event, above "now"
+
+  const rawPx = DEEP_TIME_EVENTS.map(e => (maxLog - Math.log10(e.yearsAgo)) / (maxLog - minLog) * TIMELINE_IDEAL_HEIGHT);
+  const px = [];
+  let prev = -Infinity;
+  for(const raw of rawPx){
+    const pos = Math.max(raw, prev + TIMELINE_MIN_GAP);
+    px.push(pos);
+    prev = pos;
+  }
+  const nowPx = Math.max(prev + TIMELINE_MIN_GAP, TIMELINE_IDEAL_HEIGHT) + 30;
+  el.style.height = (nowPx + 70) + 'px';
+
   el.innerHTML = DEEP_TIME_EVENTS.map((e, i) => {
-    const pct = (maxLog - Math.log10(e.yearsAgo)) / (maxLog - minLog) * 96; // 96% -- leave room for the "now" marker
     const side = i % 2 === 0 ? 'left' : 'right';
     const whenTxt = e.yearsAgo >= 1e9 ? (e.yearsAgo/1e9).toFixed(e.yearsAgo % 1e9 === 0 ? 0 : 1) + ' billion years ago'
       : e.yearsAgo >= 1e6 ? (e.yearsAgo/1e6).toFixed(e.yearsAgo % 1e6 === 0 ? 0 : 1) + ' million years ago'
       : e.yearsAgo >= 1e3 ? (e.yearsAgo/1e3).toFixed(0) + ',000 years ago'
       : e.yearsAgo + ' years ago';
-    return `<div class="tl-event ${side}" style="top:${pct}%;">
+    return `<div class="tl-event ${side}" style="top:${px[i]}px;">
       <div class="tl-dot"></div>
       <div class="tl-when">${whenTxt}</div>
       <div class="tl-label">${e.label}</div>
       ${e.note ? `<div class="tl-note">${e.note}</div>` : ''}
     </div>`;
-  }).join('') + `<div class="tl-now" style="top:100%;">
+  }).join('') + `<div class="tl-now" style="top:${nowPx}px;">
     <div class="tl-now-dot"></div>
     <div class="tl-now-label">You, right now</div>
     <div class="tl-now-sub">${new Date().toLocaleDateString([], {weekday:'long', month:'long', day:'numeric', year:'numeric'})}</div>
   </div>`;
 }
 
-function renderRings(){
-  const rings = [
-    { r: 150, color:'rgba(226,161,61,0.5)', label:'Milky Way · Orion Spur' },
-    { r: 112, color:'rgba(108,90,149,0.55)', label:'Local stellar neighbourhood' },
-    { r: 74, color:'rgba(154,181,150,0.6)', label:'Solar System' },
-    { r: 40, color:'var(--bone)', label:'Earth' }
-  ];
-  const size = 320, cx = size/2, cy = size/2;
-  const circles = rings.map(r => `<circle cx="${cx}" cy="${cy}" r="${r.r}" fill="none" stroke="${r.color}" stroke-width="1.5" stroke-dasharray="4 4"/>`).join('');
-  const dot = `<circle cx="${cx}" cy="${cy}" r="5" fill="var(--amber)"/>`;
-  const labels = rings.map((r,i) => `<text x="${cx}" y="${cy - r.r - 6}" text-anchor="middle" font-size="9" font-family="Space Mono, monospace" fill="rgba(234,227,210,0.7)">${r.label}</text>`).join('');
-  document.getElementById('rings').innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${circles}${labels}${dot}
-    <text x="${cx}" y="${cy+18}" text-anchor="middle" font-size="9" font-family="Space Mono, monospace" fill="rgba(234,227,210,0.55)">you are here</text>
-  </svg>`;
+// ~79 years is a commonly-cited current ONS UK male life-expectancy-at-birth
+// figure -- an average across a population at a point in time, not a
+// prediction. Weeks/year uses 365.25/7 to account for leap years.
+const AVG_UK_MALE_LIFE_YEARS = 79;
+const WEEKS_PER_ROW = 52;
+
+function renderWeeks(birthdateStr){
+  const birthdate = new Date(birthdateStr + 'T00:00:00');
+  const now = new Date();
+  const msPerWeek = 7 * 86400000;
+  const weeksLived = Math.max(0, Math.floor((now - birthdate) / msPerWeek));
+  const totalWeeks = Math.round(AVG_UK_MALE_LIFE_YEARS * 365.25 / 7);
+  const rows = Math.ceil(totalWeeks / WEEKS_PER_ROW);
+
+  let html = '';
+  let weekIdx = 0;
+  for(let row = 0; row < rows; row++){
+    let boxes = '';
+    for(let col = 0; col < WEEKS_PER_ROW && weekIdx < totalWeeks; col++){
+      const cls = weekIdx === weeksLived ? 'week-box current' : weekIdx < weeksLived ? 'week-box lived' : 'week-box';
+      boxes += `<div class="${cls}"></div>`;
+      weekIdx++;
+    }
+    html += `<div class="weeks-row"><div class="weeks-row-label">${row}</div><div class="weeks-row-boxes">${boxes}</div></div>`;
+  }
+  document.getElementById('weeksGrid').innerHTML = html;
+
+  const pct = Math.min(100, weeksLived / totalWeeks * 100).toFixed(1);
+  document.getElementById('weeksCaption').innerHTML =
+    `You've lived <strong>${weeksLived.toLocaleString()}</strong> of an estimated <strong>${totalWeeks.toLocaleString()}</strong> weeks (~${AVG_UK_MALE_LIFE_YEARS}-year UK male life expectancy at birth) — <strong>${pct}%</strong>.`;
 }
 
 renderTimeline();
-renderRings();
+renderWeeks(document.getElementById('birthdateInput').value);
+document.getElementById('birthdateInput').addEventListener('change', e => {
+  if(e.target.value) renderWeeks(e.target.value);
+});
 
 const tabDeepTime = document.getElementById('tabDeepTime');
-const tabGalaxy = document.getElementById('tabGalaxy');
+const tabWeeks = document.getElementById('tabWeeks');
 const viewDeepTime = document.getElementById('viewDeepTime');
-const viewGalaxy = document.getElementById('viewGalaxy');
+const viewWeeks = document.getElementById('viewWeeks');
 
 tabDeepTime.addEventListener('click', () => {
-  tabDeepTime.classList.add('active'); tabGalaxy.classList.remove('active');
-  viewDeepTime.classList.add('active'); viewGalaxy.classList.remove('active');
+  tabDeepTime.classList.add('active'); tabWeeks.classList.remove('active');
+  viewDeepTime.classList.add('active'); viewWeeks.classList.remove('active');
 });
-tabGalaxy.addEventListener('click', () => {
-  tabGalaxy.classList.add('active'); tabDeepTime.classList.remove('active');
-  viewGalaxy.classList.add('active'); viewDeepTime.classList.remove('active');
+tabWeeks.addEventListener('click', () => {
+  tabWeeks.classList.add('active'); tabDeepTime.classList.remove('active');
+  viewWeeks.classList.add('active'); viewDeepTime.classList.remove('active');
 });
 </script>
 </body>

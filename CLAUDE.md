@@ -15,8 +15,8 @@ knowing why the current code looks the way it does.
 |---|---|
 | `nature-dashboard.html` | Main app — everything except the tree map |
 | `trees-map.html` | Separate Leaflet.js page: all 160,870 trees on an interactive map |
-| `sightings-map.html` | Separate Leaflet.js page: pannable map of recent iNaturalist sightings (last 30 days), colour-coded and filterable by taxon group. Linked from the dashboard's species card. Originally also had a green/blue-spaces Overpass layer (see git history / superseded design note below) — removed as redundant with the base map and a source of slowness. |
-| `perspective.html` | Separate page, two tabs: a logarithmic deep-time timeline (Big Bang → now) and a "cosmic address" view of Earth's position in the galaxy with real distance figures. Linked from the dashboard below the activity card ("Zoom out: the long now"). Both static/offline-friendly — no live data fetches. |
+| `sightings-map.html` | Separate Leaflet.js page: pannable map of recent iNaturalist sightings (last 30 days), colour-coded and filterable by taxon group, with photos in the popups. Linked from the dashboard's top-of-page sightings mini-map card. Originally also had a green/blue-spaces Overpass layer (see git history / superseded design note below) — removed as redundant with the base map and a source of slowness. |
+| `perspective.html` | Separate page, two tabs: a logarithmic deep-time timeline (Big Bang → now) and a "life in weeks" grid (one box per week of an average UK male lifespan, editable birthday). Linked from the dashboard's season band ("The Long Now →"). Both static/offline-friendly — no live data fetches. |
 | `sw.js` | Service worker — caches the app shell for offline/PWA use |
 | `manifest.json` | PWA install config |
 | `icons/icon-192.png`, `icons/icon-512.png` | App icons |
@@ -60,9 +60,16 @@ knowing why the current code looks the way it does.
   much farther than a small distant feature's centroid, causing wrong "nearest" results.
   See `rankNearbyFeatures()` — it walks every vertex of a way's geometry and keeps the
   closest one.
-- **Overpass reliability**: rotate across multiple public mirrors (`overpass-api.de`,
-  `overpass.kumi.systems`, `overpass.openstreetmap.fr`, `overpass.openstreetmap.ru`) with
-  try/catch fallback — the main instance alone frequently 503s under load.
+- **Overpass reliability + speed**: query all 4 public mirrors (`overpass-api.de`,
+  `overpass.kumi.systems`, `overpass.openstreetmap.fr`, `overpass.openstreetmap.ru`) **in
+  parallel** via `Promise.any`, each bounded by its own 12s `AbortController` timeout, and
+  take whichever responds first. Originally sequential (try one, wait for it to fully fail,
+  try the next) — the main instance alone frequently 503s/times out under load, and
+  sequential fallback meant every query paid that mirror's full timeout before even
+  starting the next one. Verified live: a real query with one mirror CORS-blocked and two
+  others taking 11-12s still resolved in ~3.5s via whichever mirror was actually fast that
+  moment — the fix is a genuine, measured speedup for the dashboard's green/blue cards, not
+  just theoretical. See `fetchOverpassMirror`/`fetchOverpass` in `nature-dashboard.html`.
 - **Green/blue "3 nearest" must actively re-fetch as the user walks**, not just re-sort a
   stale set fetched once at page load. Real bug: user walked past a genuinely-nearest new
   green space 10 minutes after load and it never appeared, because the app only ever
@@ -104,15 +111,49 @@ knowing why the current code looks the way it does.
 - **Claude.ai's own artifact preview sandbox blocks/limits real network fetches and
   geolocation** — this is why the app needed to be deployed to real GitHub Pages hosting
   rather than tested inside Claude's own chat interface.
-- **Android Chrome's forced/auto dark theme can invert light-coloured UI elements** on
-  pages that never declare a colour scheme — real bug found via the moon phase icon
-  (a light `--bone`-coloured disc) rendering fully dark for a user on Android's system dark
-  mode, even though this app is always dark-themed regardless of system setting. Fixed by
-  declaring `<meta name="color-scheme" content="dark">` plus CSS `:root{color-scheme:dark;}`
-  in every page, telling the browser this page is intentionally dark and shouldn't be
-  auto-inverted. Any future light-coloured element (anything not already using the dark
-  palette) is at risk of the same bug on Android if a page is ever added without this meta
-  tag — check for it first if a color looks wrong specifically on Android.
+- **Android Chrome's forced/auto dark theme can invert light-coloured UI elements**, and
+  `<meta name="color-scheme" content="dark">` (present on every page) is **not sufficient
+  to stop it on its own** — confirmed by the user still seeing a fully-black moon icon
+  after that fix shipped. The icon was originally a plain CSS circle
+  (`background:var(--bone)`) with an inset `box-shadow` carving the crescent; that
+  combination of a flat light background-color + shadow is exactly the kind of surface
+  Android's heuristic targets for inversion, color-scheme meta tag or not. Fixed properly
+  by rebuilding the icon as genuine SVG vector content: a `<mask>` with a movable
+  `<circle>` cutout, so the "shadow" is a hole punched in the lit disc (letting the dark
+  page background show through) rather than a colour Android can reinterpret. Vector
+  fills/masks are far less likely to be touched by this heuristic than a flat coloured
+  surface — if another light-coloured element is ever added, prefer SVG over a plain
+  CSS background for exactly this reason, don't assume the meta tag alone covers it.
+
+## Dashboard top-of-page layout
+
+- **Order**: header (title only) → sightings mini-map card → sky band (time of day) →
+  season band (time of year) → the 2-col card grid. `#locLine` (captured place name/coords)
+  lives inside the mini-map card now, not the header — same element id, just moved, so no
+  JS changes were needed beyond the card markup itself.
+- **Sightings mini-map card**: a real OSM tile (`a.tile.openstreetmap.org/{z}/{x}/{y}.png`,
+  zoom 14) shown as a plain `<img>`, not a Leaflet instance — one image request instead of
+  pulling in the whole Leaflet library just for a decorative preview on the main dashboard,
+  which the user specifically wants kept fast. The "you are here" dot is fixed at dead-
+  centre via CSS (`top:50%;left:50%`), not computed to the user's exact sub-tile pixel:
+  `object-fit:cover` crops this square tile to fill a wide/short box, and precisely
+  centring an arbitrary point within that crop needs a multi-tile mosaic to guarantee the
+  point never lands outside the visible slice. This is a preview, not a precise instrument
+  — tapping the card opens `sightings-map.html` (real, precise, interactive) for that.
+  Whole card is an `<a>` linking there with `?lat=&lng=` once a position is known.
+- **Season band**: sits directly below the sky band, same visual weight. Four fixed-order
+  quarters (Spring/Summer/Autumn/Winter, left to right, each with its own gradient) with a
+  marker sliding across the whole band based on how far through the *current* quarter
+  "now" is — see `getSeasonMarkers()`/`paintSeason()`. Equinox/solstice dates are fixed
+  calendar-day approximations (Mar 20 / Jun 21 / Sep 22 / Dec 21), good to within about a
+  day — same "acknowledged simple approximation" tolerance already used by `moonPhase()`,
+  not tied to any API. Also carries the link to `perspective.html` ("The Long Now →") —
+  moved here from a link at the bottom of the page per the user's request; the whole band
+  is one `<a>`.
+- **Manual location entry** (`manualLocToggle`/`manualLocBlock`) moved from just below the
+  header to just above the footer, and restyled as a small muted underlined text button
+  rather than a `.mini-btn` pill — deliberately de-emphasised ("discreet") since it's a
+  fallback path most visits never need, not a primary action.
 
 ## Live compass system
 
@@ -294,31 +335,39 @@ changes**, or returning users will keep serving a stale cached shell.
 ## Perspective page (`perspective.html`) specifics
 
 - Two tabs, both pure client-side rendering with no live data (fully offline-friendly,
-  listed in `sw.js`'s cache-first `SHELL_FILES`):
-  - **Deep time**: a vertical timeline of ~20 milestones from the Big Bang to now,
-    positioned on a **logarithmic** scale of years-ago (`(maxLog - log10(yearsAgo)) /
-    (maxLog - minLog)`) — a linear scale would make everything except "now" invisible,
-    since all of recorded human history is a vanishingly small fraction of 13.8 billion
-    years. The "now" marker is a special fixed endpoint outside the log math (log10(0) is
-    undefined), not part of `DEEP_TIME_EVENTS`. Dates are standard textbook/scientific
-    consensus figures (Big Bang ~13.8bya, Earth ~4.5bya, Cambrian explosion ~540mya,
-    K-Pg extinction ~66mya, *Homo sapiens* ~300kya, agriculture ~12kya, etc.) — not tied to
-    any API, so update `DEEP_TIME_EVENTS` directly in the file if a figure is revised.
-  - **Our place in the galaxy**: a "cosmic address" nested-rings diagram (Earth → Solar
-    System → local stellar neighbourhood → Milky Way/Orion Spur) explicitly labelled
-    "illustrative, not to scale" — the real distances span ~30 orders of magnitude and
-    genuinely cannot be drawn as one honest picture. Paired with a stat grid of real
-    figures: Moon (~384,400km average — its orbit is elliptical, so this is a mean, not a
-    live distance), Sun (1 AU), nearest star (Proxima Centauri, 4.25ly), galactic centre
-    (~26,000ly, from the Orion Spur), and Andromeda (2.5 million ly, the most distant
-    naked-eye object). No live "current" Earth-Moon/Earth-Sun distance is computed — there
-    was no free API source for this already in the project, and the point of this page is
-    perspective/awe, not precision navigation; the average figures are clearly labelled as
-    such.
-- User asked for two different "sense of scale" visualisations (deep time vs. galactic
-  position) and to ship both so they could pick a favourite — hence one page with a tab
-  switcher rather than guessing which to build. If one view is later dropped, the other's
-  code is self-contained (its own `render*()` function) and easy to lift out on its own.
+  listed in `sw.js`'s cache-first `SHELL_FILES`).
+- **Deep time**: a vertical timeline of ~20 milestones from the Big Bang to now, positioned
+  on a **logarithmic** scale of years-ago (`(maxLog - log10(yearsAgo)) / (maxLog - minLog)`)
+  — a linear scale would make everything except "now" invisible, since all of recorded
+  human history is a vanishingly small fraction of 13.8 billion years. Dates are standard
+  textbook/scientific consensus figures (Big Bang ~13.8bya, Earth ~4.5bya, Cambrian
+  explosion ~540mya, K-Pg extinction ~66mya, *Homo sapiens* ~300kya, agriculture ~12kya,
+  etc.) — not tied to any API, so update `DEEP_TIME_EVENTS` directly if a figure is revised.
+  - **Overlap fix**: pure log-scale positions left several of the earliest, closely-spaced
+    events (13.8bya vs 13.6bya; 4.6bya vs 4.5bya) with virtually the same vertical position
+    — their multi-line labels overlapped badly regardless of alternating left/right sides,
+    a real bug caught from a user screenshot, not visible from reading the code. Diagnosed
+    by measuring actual rendered `top` positions directly, not by re-deriving the CSS math.
+    Fixed with a **minimum-gap enforcement pass**: positions are computed in pixels against
+    a fixed `TIMELINE_IDEAL_HEIGHT`, then walked top-to-bottom pushing any position closer
+    than `TIMELINE_MIN_GAP` (92px) to the previous one down just enough to clear it. Dots
+    and labels share one adjusted position (not decoupled with a leader line) — a
+    deliberate simplification acknowledged in the on-page outro text, since it only
+    measurably affects the already-tightest cluster and the far more important "human
+    history is a sliver at the very end" effect is unaffected (those events already have
+    generous natural spacing). The container's height is set from JS
+    (`el.style.height`), not fixed in CSS, since the real height depends on how much
+    gap-enforcement pushing was needed.
+- **Life in weeks**: a grid of one box per week of an average UK male lifespan (~79 years,
+  ONS-ish life-expectancy-at-birth figure — an average across a population, explicitly
+  captioned as not a prediction), one row per year, editable birthday (`<input
+  type="date">`, defaults to 1982-06-24). ~4,100 boxes generated via a single template-
+  string `innerHTML` write, not per-box DOM calls — cheap even at this count (compare
+  trees-map's 160k markers). The current week gets its own highlighted class distinct from
+  "already lived" vs "not yet lived". Originally built as a galactic "cosmic address"
+  view instead (nested rings + real distance stats for Moon/Sun/nearest star/galactic
+  centre/Andromeda) — replaced at the user's request; if revisited, that code is in git
+  history (the commit that introduced `perspective.html`).
 
 ## Open items / explicitly deferred
 
