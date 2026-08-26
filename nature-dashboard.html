@@ -142,6 +142,13 @@ h1{
 .green-rest-row .name{ color: var(--bone); flex:1; min-width:0; }
 .green-rest-row .meta{ color: rgba(234,227,210,0.6); font-size:0.78rem; white-space:nowrap; display:flex; align-items:center; gap:0.4rem; }
 .mini-compass{ flex-shrink:0; }
+.moon-phase-icon{
+  width:32px; height:32px;
+  border-radius:50%;
+  background:var(--bone);
+  border:1px solid var(--line);
+  flex-shrink:0;
+}
 .mini-btn{
   margin-top:0.6rem;
   background:rgba(234,227,210,0.1);
@@ -351,14 +358,27 @@ footer{
       <div class="sub" id="weatherSub"></div>
       <div class="sub" id="hourlySub" style="margin-top:0.35rem; padding-top:0.35rem; border-top:1px solid var(--line);">loading next hour…</div>
     </div>
-    <div class="card"><div class="k">Light</div><div class="v" id="lightV">loading…</div><div class="sub" id="lightSub"></div></div>
-    <div class="card"><div class="k">Moon</div><div class="v" id="moonV">loading…</div><div class="sub" id="moonSub"></div><div class="sub" id="moonRiseSet" style="margin-top:0.3rem;"></div></div>
+    <div class="card">
+      <div class="k">Moon</div>
+      <div class="green-row">
+        <div class="moon-phase-icon" id="moonPhaseIcon"></div>
+        <div>
+          <div class="v" id="moonV">loading…</div>
+          <div class="sub" id="moonSub"></div>
+        </div>
+      </div>
+      <div class="sub" id="moonRiseSet" style="margin-top:0.4rem;"></div>
+    </div>
     <div class="card wide" id="greenCard">
       <div class="k">Nearest green spaces</div>
       <div class="green-row">
         <svg id="compassSvg" width="46" height="46" viewBox="0 0 46 46">
           <circle cx="23" cy="23" r="21" fill="none" stroke="rgba(234,227,210,0.25)" stroke-width="1.5"/>
-          <text x="23" y="8" text-anchor="middle" font-size="7" fill="rgba(234,227,210,0.55)" font-family="Space Mono, monospace">N</text>
+          <g id="compassNGroup" transform="rotate(0 23 23)">
+            <g id="compassNGlyph" transform="rotate(0 23 8)">
+              <text x="23" y="8" text-anchor="middle" font-size="7" fill="rgba(234,227,210,0.55)" font-family="Space Mono, monospace">N</text>
+            </g>
+          </g>
           <g id="compassArrowGroup" transform="rotate(0 23 23)">
             <polygon points="23,9 27,25 23,21 19,25" fill="var(--amber)"/>
           </g>
@@ -377,7 +397,11 @@ footer{
       <div class="green-row">
         <svg id="blueCompassSvg" width="46" height="46" viewBox="0 0 46 46">
           <circle cx="23" cy="23" r="21" fill="none" stroke="rgba(234,227,210,0.25)" stroke-width="1.5"/>
-          <text x="23" y="8" text-anchor="middle" font-size="7" fill="rgba(234,227,210,0.55)" font-family="Space Mono, monospace">N</text>
+          <g id="blueCompassNGroup" transform="rotate(0 23 23)">
+            <g id="blueCompassNGlyph" transform="rotate(0 23 8)">
+              <text x="23" y="8" text-anchor="middle" font-size="7" fill="rgba(234,227,210,0.55)" font-family="Space Mono, monospace">N</text>
+            </g>
+          </g>
           <g id="blueCompassArrowGroup" transform="rotate(0 23 23)">
             <polygon points="23,9 27,25 23,21 19,25" fill="#5b9bd5"/>
           </g>
@@ -394,7 +418,11 @@ footer{
       <div class="green-row">
         <svg id="treeCompassSvg" width="46" height="46" viewBox="0 0 46 46">
           <circle cx="23" cy="23" r="21" fill="none" stroke="rgba(234,227,210,0.25)" stroke-width="1.5"/>
-          <text x="23" y="8" text-anchor="middle" font-size="7" fill="rgba(234,227,210,0.55)" font-family="Space Mono, monospace">N</text>
+          <g id="treeCompassNGroup" transform="rotate(0 23 23)">
+            <g id="treeCompassNGlyph" transform="rotate(0 23 8)">
+              <text x="23" y="8" text-anchor="middle" font-size="7" fill="rgba(234,227,210,0.55)" font-family="Space Mono, monospace">N</text>
+            </g>
+          </g>
           <g id="treeCompassArrowGroup" transform="rotate(0 23 23)">
             <polygon points="23,9 27,25 23,21 19,25" fill="#8fa86a"/>
           </g>
@@ -439,7 +467,7 @@ footer{
   <footer>
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
-    Last edited <span id="buildStamp">25/8/26</span> · v3.2 · build 7205b1
+    Last edited <span id="buildStamp">25/8/26</span> · v3.3 · build d2c1b4
   </footer>
 </div>
 
@@ -542,7 +570,26 @@ function scheduleCompassUpdate(){
     updateBlueCompassArrow();
     updateMiniCompasses();
     updateTreeCompassArrow();
+    updateNMarker('compassNGroup', 'compassNGlyph');
+    updateNMarker('blueCompassNGroup', 'blueCompassNGlyph');
+    updateNMarker('treeCompassNGroup', 'treeCompassNGlyph');
   });
+}
+
+// The big compass dials show an arrow pointing at a target relative to the
+// phone's current facing direction (top of dial = "forward"), not relative
+// to true north -- so a fixed "N" label at the top is only accurate while
+// the live compass is off. Once it's active, orbit the N marker around the
+// dial using the same bearing-to-rotation formula as the arrows (true north
+// is just a "target" with an absolute bearing of 0), and counter-rotate the
+// glyph itself so the letter stays upright instead of spinning with it.
+function updateNMarker(groupId, glyphId){
+  const group = document.getElementById(groupId);
+  const glyph = document.getElementById(glyphId);
+  if(!group || !glyph) return;
+  const rotation = compassActive ? (360 - deviceHeading) % 360 : 0;
+  group.setAttribute('transform', `rotate(${rotation} 23 23)`);
+  glyph.setAttribute('transform', `rotate(${-rotation} 23 8)`);
 }
 
 function handleOrientation(e){
@@ -615,7 +662,7 @@ function moonPhase(date){
   else if(phase < 0.72) name = "Waning gibbous";
   else if(phase < 0.78) name = "Last quarter";
   else name = "Waning crescent";
-  return { name, illum: Math.round(illum*100) };
+  return { name, illum: Math.round(illum*100), phase };
 }
 
 async function getMoonRiseSet(lat, lng){
@@ -1418,6 +1465,18 @@ async function loadEverything(lat,lng){
   const moon = moonPhase(now);
   document.getElementById('moonV').textContent = moon.name;
   document.getElementById('moonSub').textContent = moon.illum + '% illuminated';
+  // Approximate crescent/gibbous shape via an inset box-shadow: a same-size
+  // "shadow" circle offset horizontally, so its overlap with the lit disc
+  // shrinks from full coverage (new moon, offset 0) to no overlap (full
+  // moon, offset = one full diameter). Waxing shows lit-right, waning
+  // lit-left, matching how the moon actually appears from the UK (Northern
+  // Hemisphere).
+  const moonIcon = document.getElementById('moonPhaseIcon');
+  if(moonIcon){
+    const dir = moon.phase < 0.5 ? -1 : 1;
+    const dx = Math.round(32 * (moon.illum/100) * dir);
+    moonIcon.style.boxShadow = `inset ${dx}px 0 0 0 var(--ink-soft)`;
+  }
 
   getMoonRiseSet(lat, lng).then(rs => {
     const riseTxt = rs.moonrise ? fmtTime(rs.moonrise) : 'none today';
@@ -1463,12 +1522,6 @@ async function loadEverything(lat,lng){
       document.getElementById('hourlySub').textContent = 'Next hour: unavailable';
     }
     phase = paintSky(now, sunrise, sunset);
-    const untilSet = (sunset - now) / 60000;
-    const untilRise = (sunrise - now) / 60000;
-    if(phase === 'Day') document.getElementById('lightV').textContent = `${Math.round(untilSet/60)}h to sunset`;
-    else if(phase === 'Night' && untilRise > 0) document.getElementById('lightV').textContent = `${Math.round(untilRise/60)}h to sunrise`;
-    else document.getElementById('lightV').textContent = phase;
-    document.getElementById('lightSub').textContent = `Rise ${fmtTime(sunrise)} · Set ${fmtTime(sunset)}`;
 
     buildAndShow({ phase, weatherCode: cur.weather_code, temp: cur.temperature_2m, precip: cur.precipitation, moon });
   }catch(e){
