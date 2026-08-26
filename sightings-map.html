@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Sightings Map — Field Notes</title>
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+:root{
+  color-scheme: dark;
+  --ink:#161d24;
+  --ink-soft:#232d38;
+  --moss:#42604a;
+  --lichen:#9ab596;
+  --bone:#eae3d2;
+  --amber:#e2a13d;
+  --dusk:#6c5a95;
+  --line:rgba(234,227,210,0.14);
+}
+*{box-sizing:border-box;}
+html,body{ margin:0; padding:0; height:100%; background:var(--ink); font-family:'Inter',-apple-system,sans-serif; }
+
+.topbar{
+  position:absolute; top:0; left:0; right:0; z-index:1000;
+  background:linear-gradient(to bottom, rgba(22,29,36,0.95), rgba(22,29,36,0));
+  padding:0.8rem 0.9rem 1.6rem;
+  display:flex; align-items:center; justify-content:space-between; gap:0.6rem;
+  pointer-events:none;
+}
+.topbar > *{ pointer-events:auto; }
+.back-link{
+  color:var(--bone);
+  text-decoration:none;
+  font-size:0.85rem;
+  background:rgba(22,29,36,0.85);
+  border:1px solid var(--line);
+  padding:0.5rem 0.8rem;
+  border-radius:8px;
+  white-space:nowrap;
+}
+.status-pill{
+  color:var(--bone);
+  font-family:'Space Mono',monospace;
+  font-size:0.68rem;
+  background:rgba(22,29,36,0.85);
+  border:1px solid var(--line);
+  padding:0.45rem 0.7rem;
+  border-radius:8px;
+  max-width:60vw;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+#map{ position:absolute; top:0; left:0; right:0; bottom:0; }
+
+.panel{
+  position:absolute; z-index:1000;
+  background:rgba(22,29,36,0.92);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:0.6rem 0.7rem;
+  color:var(--bone);
+  font-size:0.75rem;
+}
+.filter-panel{ bottom:0.9rem; left:0.9rem; }
+.filter-panel select{
+  background:var(--ink-soft);
+  color:var(--bone);
+  border:1px solid var(--line);
+  border-radius:6px;
+  padding:0.4rem 0.5rem;
+  font-family:'Inter',sans-serif;
+  font-size:0.78rem;
+}
+.legend{ bottom:0.9rem; right:0.9rem; max-width:38vw; }
+.legend div{ display:flex; align-items:center; gap:0.4rem; margin:0.15rem 0; }
+.legend .dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+
+.zoom-hint{
+  position:absolute; bottom:0.9rem; left:50%; transform:translateX(-50%);
+  z-index:1000;
+  background:rgba(22,29,36,0.92);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:0.6rem 0.9rem;
+  color:var(--bone);
+  font-size:0.78rem;
+  display:none;
+  white-space:nowrap;
+}
+.zoom-hint.visible{ display:block; }
+
+.leaflet-popup-content-wrapper{ background:var(--ink-soft); color:var(--bone); border-radius:10px; }
+.leaflet-popup-tip{ background:var(--ink-soft); }
+.sighting-popup{ min-width:150px; }
+.sighting-popup img{ width:100%; max-width:220px; height:140px; object-fit:cover; border-radius:8px; margin-bottom:0.5rem; display:block; }
+.sighting-popup .name{ font-family:'Fraunces',serif; font-size:1.05rem; margin:0 0 0.2rem; }
+.sighting-popup .row{ font-size:0.78rem; opacity:0.85; margin:0.15rem 0; }
+.sighting-popup a{ color:var(--lichen); }
+
+.user-dot{
+  width:16px; height:16px;
+  background:#4d9de0;
+  border:2px solid white;
+  border-radius:50%;
+  box-shadow:0 0 0 4px rgba(77,157,224,0.3);
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="nature-dashboard.html" class="back-link">← Dashboard</a>
+  <div class="status-pill" id="statusPill">Loading sightings…</div>
+</div>
+
+<div id="map"></div>
+
+<div class="zoom-hint" id="zoomHint">Zoom in further to load sightings</div>
+
+<div class="panel filter-panel">
+  <select id="taxonFilter">
+    <option value="">All sightings</option>
+    <option value="Plantae">Plants</option>
+    <option value="Fungi">Fungi</option>
+    <option value="Aves">Birds</option>
+    <option value="Mammalia">Mammals</option>
+    <option value="Insecta">Insects</option>
+    <option value="Reptilia">Reptiles</option>
+    <option value="Amphibia">Amphibians</option>
+    <option value="Mollusca">Molluscs</option>
+  </select>
+</div>
+
+<div class="panel legend" id="legend"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// Colour-coded by iNaturalist's own "iconic taxon" grouping -- same
+// categories the filter dropdown offers, so the map reads sensibly even
+// with the filter left on "All sightings".
+const ICONIC_COLORS = {
+  'Plantae': '#5a8a5f',
+  'Fungi': '#b08968',
+  'Aves': '#6c5a95',
+  'Mammalia': '#c1666b',
+  'Insecta': '#e2a13d',
+  'Reptilia': '#7a8450',
+  'Amphibia': '#4a7c82',
+  'Mollusca': '#8a7ca8'
+};
+const DEFAULT_COLOR = '#9ab596';
+const ICONIC_LABELS = {
+  'Plantae': 'Plants', 'Fungi': 'Fungi', 'Aves': 'Birds', 'Mammalia': 'Mammals',
+  'Insecta': 'Insects', 'Reptilia': 'Reptiles', 'Amphibia': 'Amphibians', 'Mollusca': 'Molluscs'
+};
+
+function renderLegend(){
+  const el = document.getElementById('legend');
+  el.innerHTML = Object.entries(ICONIC_LABELS).map(([key, label]) =>
+    `<div><span class="dot" style="background:${ICONIC_COLORS[key]};"></span>${label}</div>`
+  ).join('') + `<div><span class="dot" style="background:${DEFAULT_COLOR};"></span>Other</div>`;
+}
+renderLegend();
+
+// Sightings queries are heavier per-area than a simple tile fetch and the
+// API has no bulk export, so -- same reasoning as the tree/spaces maps --
+// stay zoom-gated and refetch only when panned/zoomed meaningfully.
+const MIN_ZOOM_SIGHTINGS = 13;
+
+const map = L.map('map', { zoomControl: false }).setView([51.45, -0.09], 12);
+L.control.zoom({ position: 'bottomleft' }).addTo(map);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom: 19
+}).addTo(map);
+
+const sightingsLayer = L.layerGroup().addTo(map);
+const statusEl = document.getElementById('statusPill');
+const zoomHintEl = document.getElementById('zoomHint');
+
+let currentIconicTaxon = '';
+let lastFetchedBounds = null;
+let lastFetchedTaxon = null;
+let fetchInFlight = false;
+
+function daysAgoIso(days){
+  return new Date(Date.now() - days*86400000).toISOString().slice(0,10);
+}
+
+function photoUrlFor(o){
+  if(o.photos && o.photos.length && o.photos[0].url) return o.photos[0].url.replace('square', 'medium');
+  if(o.taxon && o.taxon.default_photo && o.taxon.default_photo.medium_url) return o.taxon.default_photo.medium_url;
+  return null;
+}
+
+async function fetchSightings(){
+  if(fetchInFlight) return;
+  const zoom = map.getZoom();
+  if(zoom < MIN_ZOOM_SIGHTINGS){
+    zoomHintEl.classList.add('visible');
+    return;
+  }
+  const viewBounds = map.getBounds();
+  const sameTaxon = lastFetchedTaxon === currentIconicTaxon;
+  if(sameTaxon && lastFetchedBounds && lastFetchedBounds.contains(viewBounds)) return;
+  zoomHintEl.classList.remove('visible');
+
+  fetchInFlight = true;
+  statusEl.textContent = 'Loading sightings…';
+  const fetchBounds = viewBounds.pad(0.5);
+  let url = `https://api.inaturalist.org/v1/observations?swlat=${fetchBounds.getSouth()}&swlng=${fetchBounds.getWest()}&nelat=${fetchBounds.getNorth()}&nelng=${fetchBounds.getEast()}&d1=${daysAgoIso(30)}&verifiable=true&per_page=200&order_by=observed_on&order=desc`;
+  if(currentIconicTaxon) url += `&iconic_taxa%5B%5D=${currentIconicTaxon}`;
+
+  try{
+    const r = await fetch(url);
+    if(!r.ok) throw new Error('inaturalist http ' + r.status);
+    const d = await r.json();
+    lastFetchedBounds = fetchBounds;
+    lastFetchedTaxon = currentIconicTaxon;
+    sightingsLayer.clearLayers();
+    for(const o of (d.results || [])){
+      if(!o.geojson || !o.geojson.coordinates || !o.taxon) continue;
+      const [lon, lat] = o.geojson.coordinates;
+      const name = o.taxon.preferred_common_name || o.taxon.name;
+      const color = ICONIC_COLORS[o.taxon.iconic_taxon_name] || DEFAULT_COLOR;
+      const marker = L.circleMarker([lat, lon], { radius:7, color, fillColor:color, weight:1, fillOpacity:0.85 });
+      const obsUrl = o.uri || `https://www.inaturalist.org/observations/${o.id}`;
+      const photo = photoUrlFor(o);
+      marker.bindPopup(`<div class="sighting-popup">
+        ${photo ? `<img src="${photo}" alt="${name}" loading="lazy">` : ''}
+        <div class="name">${name}</div>
+        <div class="row">${o.taxon.name}${o.observed_on ? ' · ' + o.observed_on : ''}</div>
+        <div class="row"><a href="${obsUrl}" target="_blank" rel="noopener">View on iNaturalist</a></div>
+      </div>`);
+      sightingsLayer.addLayer(marker);
+    }
+    statusEl.textContent = `${(d.results || []).length} sightings in the last 30 days`;
+  }catch(e){
+    console.error('sightings fetch failed', e);
+    statusEl.textContent = 'Could not load sightings';
+  }finally{
+    fetchInFlight = false;
+  }
+}
+
+map.on('moveend', fetchSightings);
+
+document.getElementById('taxonFilter').addEventListener('change', e => {
+  currentIconicTaxon = e.target.value;
+  lastFetchedBounds = null; // force a refetch even if the viewport hasn't moved
+  fetchSightings();
+});
+
+let userMarker = null;
+function initUserLocation(){
+  if(!navigator.geolocation) return;
+  navigator.geolocation.watchPosition(
+    pos => {
+      const latlng = [pos.coords.latitude, pos.coords.longitude];
+      if(!userMarker){
+        userMarker = L.marker(latlng, {
+          icon: L.divIcon({ className:'', html:'<div class="user-dot"></div>', iconSize:[16,16], iconAnchor:[8,8] }),
+          zIndexOffset: 1000
+        }).addTo(map);
+        if(!centeredFromUrl) map.setView(latlng, 15, { animate: false });
+      } else {
+        userMarker.setLatLng(latlng);
+      }
+    },
+    err => console.error('geolocation failed on sightings map', err),
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+  );
+}
+
+const params = new URLSearchParams(window.location.search);
+const qLat = parseFloat(params.get('lat'));
+const qLng = parseFloat(params.get('lng'));
+const centeredFromUrl = !isNaN(qLat) && !isNaN(qLng);
+if(centeredFromUrl){
+  map.setView([qLat, qLng], 15, { animate: false });
+}
+
+initUserLocation();
+
+// See CLAUDE.md "Spaces map / Sightings map specifics" -- L.map() can cache
+// a 0x0 size if the tab isn't visible/composited at construction time,
+// which silently breaks every getBounds()-based fetch on this page.
+map.whenReady(() => { map.invalidateSize(); fetchSightings(); });
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden) map.invalidateSize();
+});
+</script>
+</body>
+</html>

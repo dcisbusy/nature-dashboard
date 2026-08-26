@@ -15,7 +15,8 @@ knowing why the current code looks the way it does.
 |---|---|
 | `nature-dashboard.html` | Main app — everything except the tree map |
 | `trees-map.html` | Separate Leaflet.js page: all 160,870 trees on an interactive map |
-| `spaces-map.html` | Separate Leaflet.js page: pannable map of green/blue spaces (OSM/Overpass, queried live per-viewport, not a bulk dataset like trees) with an optional toggleable layer of recent iNaturalist sightings (last 30 days, also per-viewport). Linked from the dashboard's green-spaces card. |
+| `sightings-map.html` | Separate Leaflet.js page: pannable map of recent iNaturalist sightings (last 30 days), colour-coded and filterable by taxon group. Linked from the dashboard's species card. Originally also had a green/blue-spaces Overpass layer (see git history / superseded design note below) — removed as redundant with the base map and a source of slowness. |
+| `perspective.html` | Separate page, two tabs: a logarithmic deep-time timeline (Big Bang → now) and a "cosmic address" view of Earth's position in the galaxy with real distance figures. Linked from the dashboard below the activity card ("Zoom out: the long now"). Both static/offline-friendly — no live data fetches. |
 | `sw.js` | Service worker — caches the app shell for offline/PWA use |
 | `manifest.json` | PWA install config |
 | `icons/icon-192.png`, `icons/icon-512.png` | App icons |
@@ -103,6 +104,15 @@ knowing why the current code looks the way it does.
 - **Claude.ai's own artifact preview sandbox blocks/limits real network fetches and
   geolocation** — this is why the app needed to be deployed to real GitHub Pages hosting
   rather than tested inside Claude's own chat interface.
+- **Android Chrome's forced/auto dark theme can invert light-coloured UI elements** on
+  pages that never declare a colour scheme — real bug found via the moon phase icon
+  (a light `--bone`-coloured disc) rendering fully dark for a user on Android's system dark
+  mode, even though this app is always dark-themed regardless of system setting. Fixed by
+  declaring `<meta name="color-scheme" content="dark">` plus CSS `:root{color-scheme:dark;}`
+  in every page, telling the browser this page is intentionally dark and shouldn't be
+  auto-inverted. Any future light-coloured element (anything not already using the dark
+  palette) is at risk of the same bug on Android if a page is ever added without this meta
+  tag — check for it first if a color looks wrong specifically on Android.
 
 ## Live compass system
 
@@ -208,41 +218,55 @@ changes**, or returning users will keep serving a stale cached shell.
 - Parsing runs in **async batches of 8,000 via `requestAnimationFrame`**, not one blocking
   synchronous loop — extracts only lat/lon/category into the Supercluster index plus a
   parallel `treeRows` array (for lazy popup lookup by index); no Leaflet Marker/Popup
-  objects are constructed until a point is actually visible.
+  objects are constructed until a point is actually visible. Note: browsers pause
+  `requestAnimationFrame` for backgrounded/non-visible tabs (standard battery-saving
+  behaviour), so if this page is ever opened in a background tab, loading will genuinely
+  pause until the user actually looks at it, then resume from where it left off — this is
+  expected, not a bug, and matches what the loading bar honestly shows.
 - Accepts `?lat=&lng=` URL params (passed from the dashboard's "View all trees on map"
   link) to center immediately, rather than waiting for its own possibly-slower GPS fix.
 - Real GLA tree IDs are shown (`uniqueid` column from the source data) — the source's own
   documentation notes these are for mapping purposes only, not linked to any external
   borough management system.
-- Calls `map.invalidateSize()` on `whenReady` and on `visibilitychange` — see the Leaflet
-  gotcha noted under Spaces map below, which applies here too.
+- **Two Leaflet gotchas fixed here** (both apply equally to `sightings-map.html`, see its
+  section below for the full writeup): `map.invalidateSize()` on `whenReady` +
+  `visibilitychange` (container-size-at-construction bug), and `{ animate: false }` on
+  every *programmatic* `setView()` call that runs automatically on load — e.g. the
+  `?lat=&lng=` recenter above and the geolocation-fallback recenter in `initUserLocation()`
+  (NOT the cluster-click-to-zoom call, which is user-triggered and fine to animate).
 
-## Spaces map (`spaces-map.html`) specifics
+## Sightings map (`sightings-map.html`) specifics
 
-- Pannable map of green/blue spaces plus an optional iNaturalist sightings layer. Unlike
-  the tree map, there is no equivalent bulk dataset to pre-process (parks/water are
-  irregular polygons, not a clean point export London Datastore-style) — so both layers
-  are **queried live from the current viewport** via the same multi-mirror Overpass setup
-  as the dashboard's green/blue cards (`OVERPASS_MIRRORS`, duplicated in this file per the
-  project's no-shared-JS-module convention) and iNaturalist's bbox observation search
-  (`swlat/swlng/nelat/nelng`).
-- **Zoom-gated** below zoom 13 for both layers (`MIN_ZOOM_GREENBLUE`/`MIN_ZOOM_SIGHTINGS`)
-  — a bbox that wide would make for a slow/huge Overpass query and an overwhelming number
-  of markers, same reasoning as the dashboard's fixed 2-3km `around:` radius just expressed
-  as a zoom floor instead (this page has no single fixed center to radius from). Shows a
-  "zoom in further" hint instead of querying; does **not** clear already-loaded data when
-  you zoom back out, only skips the refetch.
-- **Refetch avoidance via padded bounds**: each successful fetch is scoped to the current
-  viewport padded well beyond it (`bounds.pad()`), and a `moveend` only triggers a new
-  fetch once you've panned/zoomed outside the last-fetched padded area — otherwise small
-  pans reuse the same data instead of hammering Overpass/iNaturalist on every drag.
-- **iNaturalist sightings default to last 30 days, `verifiable=true`, capped at
-  `per_page=200`** — a city center can easily have more observations than that in a
-  month; this is a deliberate cap to avoid flooding the map, not a bug if a dense area caps
-  out. No clustering (unlike the tree map) since per-viewport counts are always ≤200 —
-  clustering only became necessary at trees' 160k scale.
-- Both layers are rebuilt from scratch (`clearLayers()` + repopulate) on every successful
-  fetch rather than diffed against the previous set — same "cheap enough, not worth the
+- **Originally called `spaces-map.html`** and also had a green/blue-spaces Overpass layer
+  (parks/water queried live per-viewport, same multi-mirror setup as the dashboard's
+  green/blue cards). Removed at the user's request: it was slow (live Overpass queries
+  with multi-mirror fallback can take a while when the primary mirror times out — the same
+  latency the dashboard's own green/blue cards already have, see Data sources below) and
+  largely redundant with what the OSM base tiles already show for parks/water. If asked to
+  bring it back, the Overpass query/rendering code is in git history (see the commit that
+  introduced `spaces-map.html` and the one that later renamed/simplified it to
+  `sightings-map.html`) — don't rebuild it from scratch.
+- Now purely an iNaturalist sightings map: bbox-scoped observation search
+  (`swlat/swlng/nelat/nelng`), last 30 days, `verifiable=true`, capped at `per_page=200`
+  (a city centre can exceed that in a month — deliberate cap to avoid flooding the map, not
+  a bug if a dense area hits it). No clustering needed at that scale (unlike the tree map,
+  which needs it at 160k points).
+- **Filterable by taxon** via the `iconic_taxa[]` API param (dropdown: Plants/Fungi/Birds/
+  Mammals/Insects/Reptiles/Amphibians/Molluscs, or "All"). Markers are also colour-coded by
+  the same `ICONIC_COLORS` map regardless of filter state, so "All" still reads sensibly at
+  a glance — see the legend. Changing the filter forces a refetch even if the viewport
+  hasn't moved (`lastFetchedBounds = null`).
+- **Popups include a photo** (`o.photos[0].url` with `square` swapped for `medium`, falling
+  back to `o.taxon.default_photo.medium_url`) alongside name/species/date and a link to the
+  observation on iNaturalist — same photo-URL pattern already used in
+  `nature-dashboard.html`'s species card.
+- **Zoom-gated** below zoom 13 (`MIN_ZOOM_SIGHTINGS`) and refetch-avoided via padded bounds
+  (`bounds.pad(0.5)`) — a `moveend` only triggers a new fetch once you've panned/zoomed
+  outside the last-fetched padded area, so small pans reuse the same data instead of
+  hammering the API on every drag. Shows a "zoom in further" hint instead of querying below
+  the floor; does **not** clear already-loaded data when you zoom back out.
+- Layer is rebuilt from scratch (`clearLayers()` + repopulate) on every successful fetch
+  rather than diffed against the previous set — same "cheap enough, not worth the
   complexity" tradeoff already used by the tree map's cluster layer.
 - **Leaflet gotcha**: `L.map()` measures its container's pixel size at construction time.
   If the tab isn't actually visible/composited at that exact moment (backgrounded tab, PWA
@@ -253,6 +277,48 @@ changes**, or returning users will keep serving a stale cached shell.
   `map.invalidateSize()` called once on `map.whenReady()` and again on every
   `visibilitychange` back to visible. Applied to `trees-map.html` too since it has the
   identical construction pattern.
+- **Second Leaflet gotcha, found while chasing the first**: `map.setView(latlng, zoom)`
+  defaults to an *animated* zoom/pan transition (`zoomAnimated` is `true` by default), which
+  only completes — and only updates `map.getZoom()`/`getCenter()` — once its CSS
+  transition/rAF-driven animation actually finishes. If that animation starts before the
+  tab is genuinely compositing frames, it can stall indefinitely: `getZoom()` keeps
+  reporting the *old* zoom forever, silently leaving the map centred on the wrong place with
+  no error. This directly broke the `?lat=&lng=` auto-recenter on load. Confirmed directly:
+  the exact same `setView()` call left the map stuck at the default view every time, but
+  `map.setView(latlng, zoom, { animate: false })` applied instantly and reliably every
+  time. Fixed on every *automatic* `setView()` call in both map pages (the `?lat=&lng=`
+  recenter and the geolocation-fallback recenter) — left animated only on the
+  cluster-click-to-zoom handler in `trees-map.html`, which is user-triggered and therefore
+  never at risk of firing before the tab is visible.
+
+## Perspective page (`perspective.html`) specifics
+
+- Two tabs, both pure client-side rendering with no live data (fully offline-friendly,
+  listed in `sw.js`'s cache-first `SHELL_FILES`):
+  - **Deep time**: a vertical timeline of ~20 milestones from the Big Bang to now,
+    positioned on a **logarithmic** scale of years-ago (`(maxLog - log10(yearsAgo)) /
+    (maxLog - minLog)`) — a linear scale would make everything except "now" invisible,
+    since all of recorded human history is a vanishingly small fraction of 13.8 billion
+    years. The "now" marker is a special fixed endpoint outside the log math (log10(0) is
+    undefined), not part of `DEEP_TIME_EVENTS`. Dates are standard textbook/scientific
+    consensus figures (Big Bang ~13.8bya, Earth ~4.5bya, Cambrian explosion ~540mya,
+    K-Pg extinction ~66mya, *Homo sapiens* ~300kya, agriculture ~12kya, etc.) — not tied to
+    any API, so update `DEEP_TIME_EVENTS` directly in the file if a figure is revised.
+  - **Our place in the galaxy**: a "cosmic address" nested-rings diagram (Earth → Solar
+    System → local stellar neighbourhood → Milky Way/Orion Spur) explicitly labelled
+    "illustrative, not to scale" — the real distances span ~30 orders of magnitude and
+    genuinely cannot be drawn as one honest picture. Paired with a stat grid of real
+    figures: Moon (~384,400km average — its orbit is elliptical, so this is a mean, not a
+    live distance), Sun (1 AU), nearest star (Proxima Centauri, 4.25ly), galactic centre
+    (~26,000ly, from the Orion Spur), and Andromeda (2.5 million ly, the most distant
+    naked-eye object). No live "current" Earth-Moon/Earth-Sun distance is computed — there
+    was no free API source for this already in the project, and the point of this page is
+    perspective/awe, not precision navigation; the average figures are clearly labelled as
+    such.
+- User asked for two different "sense of scale" visualisations (deep time vs. galactic
+  position) and to ship both so they could pick a favourite — hence one page with a tab
+  switcher rather than guessing which to build. If one view is later dropped, the other's
+  code is self-contained (its own `render*()` function) and easy to lift out on its own.
 
 ## Open items / explicitly deferred
 

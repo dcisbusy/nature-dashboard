@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#161d24">
+<title>The Long Now — Field Notes</title>
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap">
+<style>
+:root{
+  color-scheme: dark;
+  --ink:#161d24;
+  --ink-soft:#232d38;
+  --moss:#42604a;
+  --lichen:#9ab596;
+  --bone:#eae3d2;
+  --amber:#e2a13d;
+  --dusk:#6c5a95;
+  --line:rgba(234,227,210,0.14);
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  background:var(--ink);
+  color:var(--bone);
+  font-family:'Inter',sans-serif;
+  min-height:100vh;
+  padding:0 0 3rem;
+  overflow-x:hidden;
+}
+.wrap{max-width:640px; margin:0 auto; padding:0 1.1rem;}
+header{padding:1.6rem 0 1rem;}
+.back-link{
+  color:var(--lichen);
+  text-decoration:none;
+  font-family:'Space Mono',monospace;
+  font-size:0.72rem;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+}
+h1{
+  font-family:'Fraunces',serif;
+  font-weight:500;
+  font-size:1.9rem;
+  line-height:1.15;
+  margin-top:0.5rem;
+}
+.tagline{
+  font-size:0.88rem;
+  color:rgba(234,227,210,0.65);
+  margin-top:0.5rem;
+  line-height:1.5;
+}
+
+.tabbar{
+  display:flex;
+  gap:0.5rem;
+  margin:1.3rem 0 1.6rem;
+}
+.tab-btn{
+  flex:1;
+  background:var(--ink-soft);
+  border:1px solid var(--line);
+  color:rgba(234,227,210,0.65);
+  font-family:'Inter',sans-serif;
+  font-size:0.8rem;
+  font-weight:500;
+  padding:0.6rem 0.7rem;
+  border-radius:9px;
+  cursor:pointer;
+}
+.tab-btn.active{
+  background:var(--moss);
+  color:var(--bone);
+  border-color:transparent;
+}
+.view{ display:none; }
+.view.active{ display:block; }
+
+/* --- Deep time --- */
+.timeline{
+  position:relative;
+  margin:1rem 0 2rem;
+  padding:0.5rem 0;
+  min-height:1500px;
+}
+.timeline::before{
+  content:'';
+  position:absolute;
+  left:50%; top:0; bottom:0;
+  width:2px;
+  transform:translateX(-50%);
+  background:linear-gradient(to bottom, rgba(234,227,210,0.35), var(--amber));
+}
+.tl-event{
+  position:absolute;
+  left:50%;
+  width:46%;
+  transform:translateY(-50%);
+}
+.tl-event.left{ text-align:right; margin-left:calc(-46% - 14px); }
+.tl-event.right{ text-align:left; margin-left:14px; }
+.tl-dot{
+  position:absolute;
+  top:50%; left:50%;
+  width:9px; height:9px;
+  border-radius:50%;
+  background:var(--amber);
+  transform:translate(-50%,-50%);
+  box-shadow:0 0 0 4px rgba(226,161,61,0.15);
+}
+.tl-event.left .tl-dot{ left:calc(46% + 14px); }
+.tl-event.right .tl-dot{ left:-14px; }
+.tl-when{
+  font-family:'Space Mono',monospace;
+  font-size:0.68rem;
+  letter-spacing:0.05em;
+  color:var(--lichen);
+  text-transform:uppercase;
+}
+.tl-label{
+  font-family:'Fraunces',serif;
+  font-size:1.02rem;
+  margin-top:0.15rem;
+}
+.tl-note{
+  font-size:0.76rem;
+  color:rgba(234,227,210,0.6);
+  line-height:1.4;
+  margin-top:0.25rem;
+}
+.tl-now{
+  position:absolute;
+  left:50%; bottom:-0.5rem;
+  transform:translate(-50%, 50%);
+  text-align:center;
+}
+.tl-now .tl-now-dot{
+  width:16px; height:16px;
+  border-radius:50%;
+  background:var(--amber);
+  margin:0 auto 0.5rem;
+  box-shadow:0 0 0 6px rgba(226,161,61,0.25), 0 0 20px 4px rgba(226,161,61,0.4);
+  animation:pulse 2.4s ease-in-out infinite;
+}
+@keyframes pulse{
+  0%,100%{ box-shadow:0 0 0 6px rgba(226,161,61,0.25), 0 0 20px 4px rgba(226,161,61,0.4); }
+  50%{ box-shadow:0 0 0 10px rgba(226,161,61,0.12), 0 0 28px 8px rgba(226,161,61,0.55); }
+}
+.tl-now-label{
+  font-family:'Fraunces',serif;
+  font-weight:600;
+  font-size:1.15rem;
+  white-space:nowrap;
+}
+.tl-now-sub{
+  font-family:'Space Mono',monospace;
+  font-size:0.68rem;
+  color:var(--lichen);
+  margin-top:0.2rem;
+  white-space:nowrap;
+}
+.deep-time-outro{
+  margin-top:3.5rem;
+  padding-top:1.2rem;
+  border-top:1px solid var(--line);
+  font-size:0.85rem;
+  line-height:1.6;
+  color:rgba(234,227,210,0.75);
+}
+
+/* --- Galaxy --- */
+.cosmic-note{
+  font-size:0.78rem;
+  color:rgba(234,227,210,0.55);
+  margin-bottom:1rem;
+  font-style:italic;
+}
+.rings-wrap{
+  display:flex;
+  justify-content:center;
+  margin:1.5rem 0;
+}
+.stat-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0.7rem;
+  margin-top:1.6rem;
+}
+.stat-tile{
+  background:var(--ink-soft);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:0.85rem 0.9rem;
+}
+.stat-tile .k{
+  font-family:'Space Mono',monospace;
+  font-size:0.62rem;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:var(--lichen);
+  margin-bottom:0.3rem;
+}
+.stat-tile .v{
+  font-family:'Fraunces',serif;
+  font-size:1.15rem;
+  font-weight:500;
+  line-height:1.25;
+}
+.stat-tile .sub{
+  font-size:0.72rem;
+  color:rgba(234,227,210,0.6);
+  margin-top:0.25rem;
+  line-height:1.4;
+}
+.stat-tile.wide{ grid-column:1 / -1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a href="nature-dashboard.html" class="back-link">← Dashboard</a>
+    <h1>The Long Now</h1>
+    <div class="tagline">Everything else on this dashboard is about right now, right here. This is the same spot, at every scale of time and space.</div>
+  </header>
+
+  <div class="tabbar">
+    <button class="tab-btn active" id="tabDeepTime">Deep time</button>
+    <button class="tab-btn" id="tabGalaxy">Our place in the galaxy</button>
+  </div>
+
+  <div class="view active" id="viewDeepTime">
+    <div class="timeline" id="timeline"></div>
+    <div class="deep-time-outro">
+      Everything in "recorded history" — every book, every war, every name anyone has ever
+      written down — happens in the last hair's-breadth of this line. The line itself is
+      13.8 billion years long. Positions above are on a logarithmic scale (equal distances
+      represent equal <em>multiples</em> of time, not equal amounts) — a true-to-scale
+      linear version would put all of human history into a space thinner than this text.
+    </div>
+  </div>
+
+  <div class="view" id="viewGalaxy">
+    <div class="cosmic-note">Illustrative, not to scale — the real distances span roughly 30 orders of magnitude and can't honestly be drawn as one picture.</div>
+    <div class="rings-wrap" id="rings"></div>
+    <div class="stat-grid">
+      <div class="stat-tile">
+        <div class="k">Moon</div>
+        <div class="v">384,400 km</div>
+        <div class="sub">~1.3 light-seconds away (average — its orbit is elliptical)</div>
+      </div>
+      <div class="stat-tile">
+        <div class="k">Sun</div>
+        <div class="v">150 million km</div>
+        <div class="sub">1 AU · ~8.3 light-minutes away</div>
+      </div>
+      <div class="stat-tile">
+        <div class="k">Nearest star</div>
+        <div class="v">4.25 light-years</div>
+        <div class="sub">Proxima Centauri · light left it in 2020, arrives now</div>
+      </div>
+      <div class="stat-tile">
+        <div class="k">Galactic centre</div>
+        <div class="v">~26,000 ly</div>
+        <div class="sub">We orbit it from the Orion Spur, a minor arm</div>
+      </div>
+      <div class="stat-tile wide">
+        <div class="k">Nearest large galaxy</div>
+        <div class="v">Andromeda · 2.5 million light-years</div>
+        <div class="sub">The most distant thing visible to the naked eye — its light is 2.5 million years old</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DEEP_TIME_EVENTS = [
+  { yearsAgo: 13.8e9, label:'The Big Bang', note:'Space, time, and matter begin.' },
+  { yearsAgo: 13.6e9, label:'First galaxies', note:'The earliest galaxies condense out of primordial gas.' },
+  { yearsAgo: 4.6e9, label:'The Sun ignites', note:'Our Solar System forms from a collapsing cloud of dust and gas.' },
+  { yearsAgo: 4.5e9, label:'Earth forms', note:'Our planet accretes from the debris left over around the young Sun.' },
+  { yearsAgo: 4.0e9, label:'First life', note:'Simple single-celled organisms appear in early oceans.' },
+  { yearsAgo: 2.4e9, label:'The Great Oxidation', note:'Photosynthesis floods the atmosphere with oxygen for the first time.' },
+  { yearsAgo: 2.0e9, label:'Complex cells', note:'Cells with a nucleus (eukaryotes) evolve.' },
+  { yearsAgo: 0.8e9, label:'Multicellular life', note:'Cells begin cooperating as single organisms.' },
+  { yearsAgo: 540e6, label:'The Cambrian Explosion', note:'Most major animal body plans appear in a geological eyeblink.' },
+  { yearsAgo: 470e6, label:'Plants reach land', note:'The first land plants take root.' },
+  { yearsAgo: 375e6, label:'Life crawls ashore', note:'The first four-limbed animals leave the water.' },
+  { yearsAgo: 230e6, label:'Dinosaurs appear', note:'' },
+  { yearsAgo: 200e6, label:'First mammals', note:'' },
+  { yearsAgo: 66e6, label:"The dinosaurs' end", note:'An asteroid impact ends their age — birds are the survivors.' },
+  { yearsAgo: 55e6, label:'First primates', note:'' },
+  { yearsAgo: 7e6, label:'Human/chimp split', note:'Our lineage diverges from that of chimpanzees.' },
+  { yearsAgo: 300e3, label:'Homo sapiens', note:'Our species appears in Africa.' },
+  { yearsAgo: 12e3, label:'Agriculture begins', note:'' },
+  { yearsAgo: 5e3, label:'Writing invented', note:'' },
+  { yearsAgo: 200, label:'Industrial revolution', note:'' }
+];
+
+function renderTimeline(){
+  const el = document.getElementById('timeline');
+  const maxLog = Math.log10(DEEP_TIME_EVENTS[0].yearsAgo);
+  const minLog = Math.log10(200) - 0.3; // leave a little headroom below the last real event, above "now"
+  el.innerHTML = DEEP_TIME_EVENTS.map((e, i) => {
+    const pct = (maxLog - Math.log10(e.yearsAgo)) / (maxLog - minLog) * 96; // 96% -- leave room for the "now" marker
+    const side = i % 2 === 0 ? 'left' : 'right';
+    const whenTxt = e.yearsAgo >= 1e9 ? (e.yearsAgo/1e9).toFixed(e.yearsAgo % 1e9 === 0 ? 0 : 1) + ' billion years ago'
+      : e.yearsAgo >= 1e6 ? (e.yearsAgo/1e6).toFixed(e.yearsAgo % 1e6 === 0 ? 0 : 1) + ' million years ago'
+      : e.yearsAgo >= 1e3 ? (e.yearsAgo/1e3).toFixed(0) + ',000 years ago'
+      : e.yearsAgo + ' years ago';
+    return `<div class="tl-event ${side}" style="top:${pct}%;">
+      <div class="tl-dot"></div>
+      <div class="tl-when">${whenTxt}</div>
+      <div class="tl-label">${e.label}</div>
+      ${e.note ? `<div class="tl-note">${e.note}</div>` : ''}
+    </div>`;
+  }).join('') + `<div class="tl-now" style="top:100%;">
+    <div class="tl-now-dot"></div>
+    <div class="tl-now-label">You, right now</div>
+    <div class="tl-now-sub">${new Date().toLocaleDateString([], {weekday:'long', month:'long', day:'numeric', year:'numeric'})}</div>
+  </div>`;
+}
+
+function renderRings(){
+  const rings = [
+    { r: 150, color:'rgba(226,161,61,0.5)', label:'Milky Way · Orion Spur' },
+    { r: 112, color:'rgba(108,90,149,0.55)', label:'Local stellar neighbourhood' },
+    { r: 74, color:'rgba(154,181,150,0.6)', label:'Solar System' },
+    { r: 40, color:'var(--bone)', label:'Earth' }
+  ];
+  const size = 320, cx = size/2, cy = size/2;
+  const circles = rings.map(r => `<circle cx="${cx}" cy="${cy}" r="${r.r}" fill="none" stroke="${r.color}" stroke-width="1.5" stroke-dasharray="4 4"/>`).join('');
+  const dot = `<circle cx="${cx}" cy="${cy}" r="5" fill="var(--amber)"/>`;
+  const labels = rings.map((r,i) => `<text x="${cx}" y="${cy - r.r - 6}" text-anchor="middle" font-size="9" font-family="Space Mono, monospace" fill="rgba(234,227,210,0.7)">${r.label}</text>`).join('');
+  document.getElementById('rings').innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${circles}${labels}${dot}
+    <text x="${cx}" y="${cy+18}" text-anchor="middle" font-size="9" font-family="Space Mono, monospace" fill="rgba(234,227,210,0.55)">you are here</text>
+  </svg>`;
+}
+
+renderTimeline();
+renderRings();
+
+const tabDeepTime = document.getElementById('tabDeepTime');
+const tabGalaxy = document.getElementById('tabGalaxy');
+const viewDeepTime = document.getElementById('viewDeepTime');
+const viewGalaxy = document.getElementById('viewGalaxy');
+
+tabDeepTime.addEventListener('click', () => {
+  tabDeepTime.classList.add('active'); tabGalaxy.classList.remove('active');
+  viewDeepTime.classList.add('active'); viewGalaxy.classList.remove('active');
+});
+tabGalaxy.addEventListener('click', () => {
+  tabGalaxy.classList.add('active'); tabDeepTime.classList.remove('active');
+  viewGalaxy.classList.add('active'); viewDeepTime.classList.remove('active');
+});
+</script>
+</body>
+</html>

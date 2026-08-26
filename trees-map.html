@@ -3,11 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="color-scheme" content="dark">
 <title>Tree Map — Field Notes</title>
 <link rel="icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
 :root{
+  color-scheme: dark;
   --ink:#161d24;
   --ink-soft:#232d38;
   --moss:#42604a;
@@ -234,7 +236,7 @@ function initUserLocation(){
           icon: L.divIcon({ className:'', html:'<div class="user-dot"></div>', iconSize:[16,16], iconAnchor:[8,8] }),
           zIndexOffset: 1000
         }).addTo(map);
-        map.setView(latlng, 15);
+        map.setView(latlng, 15, { animate: false });
       } else {
         userMarker.setLatLng(latlng);
       }
@@ -341,7 +343,7 @@ const params = new URLSearchParams(window.location.search);
 const qLat = parseFloat(params.get('lat'));
 const qLng = parseFloat(params.get('lng'));
 if(!isNaN(qLat) && !isNaN(qLng)){
-  map.setView([qLat, qLng], 15);
+  map.setView([qLat, qLng], 15, { animate: false });
 }
 
 // Leaflet measures its container's pixel size at init time -- if the tab
