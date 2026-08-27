@@ -5,6 +5,12 @@ Single-page PWA hosted on GitHub Pages, no backend, no build step. Built collabo
 with Claude over many sessions in claude.ai before moving to Claude Code — this file exists
 so that history isn't lost in the transition.
 
+**David's daily-driver browser is Firefox (on Android), not Chrome.** This matters a lot
+for feature decisions: Firefox has real, sometimes surprising API support gaps compared to
+Chrome (e.g. no Web Speech API `SpeechRecognition` support at all — confirmed while scoping
+the voice journal feature, see below). Don't assume "works in Chrome" is good enough, and
+don't recommend a Chrome-only capability without flagging the mismatch up front.
+
 **Read this before making changes.** Several bugs below were subtle, took real debugging
 to find, and are easy to accidentally reintroduce if "simplified" or "cleaned up" without
 knowing why the current code looks the way it does.
@@ -107,7 +113,9 @@ knowing why the current code looks the way it does.
   of what the page requests. Check Android/browser location settings before assuming a
   code fix is needed.
 - **Firefox for Android has flaky PWA "Add to Home Screen" support.** Chrome is more
-  reliable for genuine installed-app behavior with working geolocation prompts.
+  reliable for genuine installed-app behavior with working geolocation prompts. Despite
+  this, David's actual daily-driver browser is Firefox (see the top of this file) — this
+  isn't a reason to assume he's on Chrome, just a known rough edge to keep in mind.
 - **Claude.ai's own artifact preview sandbox blocks/limits real network fetches and
   geolocation** — this is why the app needed to be deployed to real GitHub Pages hosting
   rather than tested inside Claude's own chat interface.
