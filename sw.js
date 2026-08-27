@@ -1,4 +1,4 @@
-const CACHE_NAME = 'field-notes-shell-v13';
+const CACHE_NAME = 'field-notes-shell-v14';
 const SHELL_FILES = [
   './nature-dashboard.html',
   './trees-map.html',
@@ -35,7 +35,9 @@ self.addEventListener('fetch', event => {
   // every Overpass mirror (see OVERPASS_MIRRORS in nature-dashboard.html) --
   // missing one means its POST requests fall into the cache-first branch below,
   // where cache.put() throws on a non-GET request and silently breaks that
-  // mirror's fallback.
+  // mirror's fallback. api.emailjs.com is here for the exact same reason --
+  // the voice journal's send() call is a POST and must never be intercepted
+  // by the cache-first branch.
   const isLiveData = [
     'api.open-meteo.com',
     'overpass-api.de',
@@ -45,7 +47,8 @@ self.addEventListener('fetch', event => {
     'api.inaturalist.org',
     'api.sunrisesunset.io',
     'ipwho.is',
-    'api.bigdatacloud.net'
+    'api.bigdatacloud.net',
+    'api.emailjs.com'
   ].some(host => url.hostname.includes(host)) || url.pathname.endsWith('activities.csv');
 
   if (isLiveData) {

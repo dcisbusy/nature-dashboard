@@ -453,6 +453,47 @@ no way for a person to know that had happened. `showUpdateBanner()` is duplicate
     ideally a screenshot from the person seeing it — the discrepancy could not be found by
     inspecting the code or a live render with the default inputs.
 
+## Voice journal (`nature-dashboard.html` only)
+
+- Record a note (`MediaRecorder`), play it back, email it as an attachment via **EmailJS**
+  — no backend needed. EmailJS is specifically designed for this: its Public Key is meant
+  to be exposed in client-side code (domain-restrictable, rate-limited), unlike a metered
+  API key. Loaded via `<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/...">`.
+- **Deliberately does not transcribe.** David's actual daily-driver browser is Firefox
+  (see top of this file), which has **no `SpeechRecognition` support at all** — the
+  free/keyless browser-native transcription path doesn't exist for him. A paid cloud STT
+  API (Whisper etc.) would need its key hidden behind a small serverless proxy to be safe
+  in a public static site, which is a real architecture change, not yet built. Current
+  design: email the raw recording, and the fallback is exactly what David already does
+  manually — run it through Whisper himself on his laptop. Desktop Whisper reads
+  Ogg/Opus or WebM/Opus fine via ffmpeg, so no format conversion is needed either way.
+- **Setup required before this actually sends anything**: `EMAILJS_SERVICE_ID`,
+  `EMAILJS_TEMPLATE_ID`, and `EMAILJS_PUBLIC_KEY` near the top of the voice journal JS are
+  blank placeholders. The Send button stays disabled and shows "isn't configured yet"
+  until real values are filled in. The EmailJS template needs a **Variable Attachment**
+  configured with a parameter name matching `EMAILJS_ATTACHMENT_PARAM` (currently
+  `'content'`), and its "To Email" field set to the `{{to_email}}` variable — not a fixed
+  address — so the recipient stays editable from the page rather than locked at the
+  template level.
+- **Recording bitrate is deliberately low** (`JOURNAL_AUDIO_BITRATE = 24000`, ~24kbps
+  mono) specifically because EmailJS's attachment limits are tight and plan-dependent:
+  **no attachments at all on the Free plan**, 500KB on Personal, 2MB on Professional
+  (verified against EmailJS's own pricing page while scoping this, not assumed). The page
+  shows the recording's actual size after stopping so it can be checked against whatever
+  plan is active before attempting to send — there's no automatic enforcement of a plan's
+  specific limit since that isn't knowable from the client side.
+- `pickJournalMimeType()` explicitly probes for a supported type rather than assuming one:
+  Firefox's `MediaRecorder` only produces Ogg/Opus for audio, Chrome/Android prefers
+  WebM/Opus. Don't hardcode either.
+- `api.emailjs.com` is in `sw.js`'s `isLiveData` allowlist for the same reason the Overpass
+  mirrors are: the send call is a POST, and a POST falling into the cache-first branch by
+  omission throws on `cache.put()` — see the Overpass bug entry above. Don't remove it.
+- Not yet tested against a real recording end-to-end (this environment's browser sandbox
+  blocks microphone access, confirmed while building this — `getUserMedia` correctly
+  rejects with `NotAllowedError` and the page shows "Microphone permission denied or
+  unavailable" rather than breaking, but the actual record → attach → send path needs a
+  real device and a configured EmailJS template to verify for real).
+
 ## Open items / explicitly deferred
 
 - **Constellations/planets card**: researched, not built (see Data sources above).

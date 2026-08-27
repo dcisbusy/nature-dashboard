@@ -393,6 +393,86 @@ h1{
   font-size:0.82rem;
   cursor:pointer;
 }
+
+/* voice journal */
+.voice-journal{
+  margin-top:1.2rem;
+  background:var(--ink-soft);
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:1.2rem 1.15rem;
+}
+.voice-journal .eyebrow{ color:var(--lichen); }
+.voice-journal h2{
+  font-family:'Fraunces',serif;
+  font-weight:600;
+  font-size:1.2rem;
+  margin:0.3rem 0 0.8rem;
+}
+.record-row{ display:flex; align-items:center; gap:0.8rem; }
+.record-btn{
+  background:var(--amber);
+  color:var(--ink);
+  border:none;
+  font-family:'Inter',sans-serif;
+  font-weight:600;
+  font-size:0.85rem;
+  padding:0.6rem 1.1rem;
+  border-radius:8px;
+  cursor:pointer;
+  display:inline-flex; align-items:center; gap:0.5rem;
+}
+.record-btn.recording{
+  background:#c1666b;
+  animation:recPulse 1.4s ease-in-out infinite;
+}
+@keyframes recPulse{
+  0%,100%{ opacity:1; }
+  50%{ opacity:0.65; }
+}
+.record-dot{ width:9px; height:9px; border-radius:50%; background:currentColor; flex-shrink:0; }
+.record-timer{
+  font-family:'Space Mono',monospace;
+  font-size:0.9rem;
+  color:var(--bone);
+}
+.journal-playback{ width:100%; margin-top:0.8rem; display:none; }
+.journal-email-row{ margin-top:0.9rem; }
+.journal-email-row label{
+  font-size:0.78rem;
+  color:rgba(234,227,210,0.7);
+  display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;
+}
+.journal-email-row input{
+  background:var(--ink);
+  border:1px solid var(--line);
+  color:var(--bone);
+  padding:0.4rem 0.6rem;
+  border-radius:6px;
+  font-family:'Inter',sans-serif;
+  font-size:0.82rem;
+  flex:1;
+  min-width:180px;
+}
+.journal-send-btn{
+  margin-top:0.7rem;
+  background:var(--moss);
+  border:none;
+  color:var(--bone);
+  font-family:'Inter',sans-serif;
+  font-size:0.82rem;
+  font-weight:500;
+  padding:0.55rem 0.95rem;
+  border-radius:8px;
+  cursor:pointer;
+}
+.journal-send-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+.journal-status, .journal-size-note{
+  margin-top:0.5rem;
+  font-size:0.78rem;
+  color:rgba(234,227,210,0.65);
+  display:none;
+}
 footer{
   margin-top:1.4rem;
   font-family:'Space Mono',monospace;
@@ -560,6 +640,22 @@ footer{
     <button class="activity-btn" id="reroll">Suggest something else</button>
   </div>
 
+  <div class="voice-journal">
+    <div class="eyebrow">Field notes, spoken</div>
+    <h2>Voice journal</h2>
+    <div class="record-row">
+      <button id="recordBtn" class="record-btn"><span class="record-dot"></span> Record</button>
+      <span class="record-timer" id="recordTimer">00:00</span>
+    </div>
+    <audio id="journalPlayback" class="journal-playback" controls></audio>
+    <div class="journal-size-note" id="journalSizeNote"></div>
+    <div class="journal-email-row">
+      <label>Send to <input type="email" id="journalEmail" value="ds_charles@hotmail.com"></label>
+    </div>
+    <button id="journalSendBtn" class="journal-send-btn" disabled>Send recording</button>
+    <div class="journal-status" id="journalStatus"></div>
+  </div>
+
   <div class="status" id="manualLocBlock" style="display:none; margin-top:1.6rem;">
     Using IP-based location? It's only city-level accurate. For a real nearby green space, enter exact coordinates (from your phone's Maps app, tap-and-hold your pin):
     <div class="locform">
@@ -576,10 +672,11 @@ footer{
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
     <span id="locLine">Locating you…</span><br>
-    Last edited <span id="buildStamp">26/8/26</span> · v4.4 · build 49e260
+    Last edited <span id="buildStamp">26/8/26</span> · v4.5 · build 2810d8
   </footer>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script>
 const state = { lat:null, lng:null, weather:null, sunrise:null, sunset:null, place:null, green:null, blue:null, species:null, moon:null };
 
@@ -1584,6 +1681,182 @@ function showActivity(){
   document.getElementById('actBody').textContent = pick.b;
 }
 document.getElementById('reroll').addEventListener('click', showActivity);
+
+// --- Voice journal: record a note, email it as an attachment via EmailJS ---
+// No backend needed -- EmailJS lets a static site send email using a public,
+// domain-restricted key (safe to expose client-side, unlike a metered API
+// key would be). Deliberately does NOT transcribe: Firefox (David's actual
+// daily-driver browser, see CLAUDE.md) has no SpeechRecognition support at
+// all, and a paid cloud transcription key can't safely live in this repo's
+// public JS without a backend to hide it behind. The fallback is exactly
+// what David already does manually today -- email the raw recording, run it
+// through Whisper on the laptop.
+//
+// SETUP: fill in the three values below from the EmailJS dashboard once the
+// service/template are created. The template needs a "Variable Attachment"
+// configured with a parameter name matching EMAILJS_ATTACHMENT_PARAM, and
+// its "To Email" field set to the {{to_email}} variable so the recipient
+// stays editable from this page rather than fixed in the template.
+const EMAILJS_SERVICE_ID = '';
+const EMAILJS_TEMPLATE_ID = '';
+const EMAILJS_PUBLIC_KEY = '';
+const EMAILJS_ATTACHMENT_PARAM = 'content';
+// ~24kbps mono keeps a several-minute recording well under typical email
+// attachment limits (EmailJS: no attachments at all on the Free plan,
+// 500KB on Personal, 2MB on Professional) -- check journalSizeNote against
+// whichever plan is active before assuming a longer recording will send.
+const JOURNAL_AUDIO_BITRATE = 24000;
+
+let journalStream = null;
+let journalRecorder = null;
+let journalChunks = [];
+let journalTimerInterval = null;
+let journalStartTime = 0;
+let journalBlob = null;
+
+function pickJournalMimeType(){
+  // Firefox's MediaRecorder only speaks Ogg/Opus for audio; Chrome/Android
+  // prefers WebM/Opus. Ask for whichever the browser actually supports
+  // rather than assuming one -- desktop Whisper reads either format fine
+  // via ffmpeg if a recording needs manual transcription.
+  const candidates = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'];
+  for(const type of candidates){
+    if(window.MediaRecorder && MediaRecorder.isTypeSupported(type)) return type;
+  }
+  return '';
+}
+
+function formatJournalTimer(ms){
+  const totalSec = Math.floor(ms/1000);
+  const m = Math.floor(totalSec/60).toString().padStart(2,'0');
+  const s = (totalSec%60).toString().padStart(2,'0');
+  return `${m}:${s}`;
+}
+
+async function startJournalRecording(){
+  const statusEl = document.getElementById('journalStatus');
+  if(!navigator.mediaDevices || !window.MediaRecorder){
+    statusEl.textContent = 'Voice recording is not supported in this browser.';
+    statusEl.style.display = 'block';
+    return;
+  }
+  try{
+    journalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  }catch(e){
+    console.error('getUserMedia failed', e);
+    statusEl.textContent = 'Microphone permission denied or unavailable.';
+    statusEl.style.display = 'block';
+    return;
+  }
+  const mimeType = pickJournalMimeType();
+  journalRecorder = mimeType
+    ? new MediaRecorder(journalStream, { mimeType, audioBitsPerSecond: JOURNAL_AUDIO_BITRATE })
+    : new MediaRecorder(journalStream, { audioBitsPerSecond: JOURNAL_AUDIO_BITRATE });
+  journalChunks = [];
+  journalRecorder.addEventListener('dataavailable', e => { if(e.data.size) journalChunks.push(e.data); });
+  journalRecorder.addEventListener('stop', onJournalRecordingStopped);
+  journalRecorder.start();
+
+  journalStartTime = Date.now();
+  const timerEl = document.getElementById('recordTimer');
+  timerEl.textContent = '00:00';
+  journalTimerInterval = setInterval(() => {
+    timerEl.textContent = formatJournalTimer(Date.now() - journalStartTime);
+  }, 250);
+
+  const btn = document.getElementById('recordBtn');
+  btn.classList.add('recording');
+  btn.innerHTML = '<span class="record-dot"></span> Stop';
+  statusEl.textContent = '';
+  statusEl.style.display = 'none';
+  document.getElementById('journalPlayback').style.display = 'none';
+  document.getElementById('journalSizeNote').style.display = 'none';
+  document.getElementById('journalSendBtn').disabled = true;
+}
+
+function stopJournalRecording(){
+  if(journalRecorder && journalRecorder.state !== 'inactive') journalRecorder.stop();
+  if(journalStream) journalStream.getTracks().forEach(t => t.stop());
+  clearInterval(journalTimerInterval);
+  const btn = document.getElementById('recordBtn');
+  btn.classList.remove('recording');
+  btn.innerHTML = '<span class="record-dot"></span> Record';
+}
+
+function onJournalRecordingStopped(){
+  journalBlob = new Blob(journalChunks, { type: (journalRecorder && journalRecorder.mimeType) || 'audio/ogg' });
+  const url = URL.createObjectURL(journalBlob);
+  const player = document.getElementById('journalPlayback');
+  player.src = url;
+  player.style.display = 'block';
+
+  const kb = Math.round(journalBlob.size / 1024);
+  const sizeNote = document.getElementById('journalSizeNote');
+  sizeNote.textContent = `Recording size: ~${kb.toLocaleString()}KB. Check this against your EmailJS plan's attachment limit before sending.`;
+  sizeNote.style.display = 'block';
+
+  const sendBtn = document.getElementById('journalSendBtn');
+  const statusEl = document.getElementById('journalStatus');
+  if(!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY){
+    sendBtn.disabled = true;
+    statusEl.textContent = "Voice journal sending isn't configured yet (EmailJS IDs missing).";
+    statusEl.style.display = 'block';
+  } else {
+    sendBtn.disabled = false;
+  }
+}
+
+document.getElementById('recordBtn').addEventListener('click', () => {
+  if(journalRecorder && journalRecorder.state === 'recording'){
+    stopJournalRecording();
+  } else {
+    startJournalRecording();
+  }
+});
+
+function journalBlobToBase64(blob){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+document.getElementById('journalSendBtn').addEventListener('click', async () => {
+  if(!journalBlob) return;
+  const email = document.getElementById('journalEmail').value.trim();
+  const statusEl = document.getElementById('journalStatus');
+  const sendBtn = document.getElementById('journalSendBtn');
+  if(!email){
+    statusEl.textContent = 'Enter an email address first.';
+    statusEl.style.display = 'block';
+    return;
+  }
+  if(!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY){
+    statusEl.textContent = "Voice journal sending isn't configured yet (EmailJS IDs missing).";
+    statusEl.style.display = 'block';
+    return;
+  }
+  statusEl.textContent = 'Sending…';
+  statusEl.style.display = 'block';
+  sendBtn.disabled = true;
+  try{
+    const base64 = await journalBlobToBase64(journalBlob);
+    const now = new Date();
+    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+      to_email: email,
+      entry_date: now.toLocaleString([], { weekday:'long', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }),
+      [EMAILJS_ATTACHMENT_PARAM]: base64
+    }, EMAILJS_PUBLIC_KEY);
+    statusEl.textContent = 'Sent.';
+  }catch(e){
+    console.error('journal send failed', e);
+    statusEl.textContent = 'Send failed: ' + (e && e.text ? e.text : 'network error');
+  }finally{
+    sendBtn.disabled = false;
+  }
+});
 
 function renderGreenspaceList(userLat, userLng, list){
   if(!list || !list.length) return;
