@@ -437,25 +437,8 @@ h1{
   color:var(--bone);
 }
 .journal-playback{ width:100%; margin-top:0.8rem; display:none; }
-.journal-email-row{ margin-top:0.9rem; }
-.journal-email-row label{
-  font-size:0.78rem;
-  color:rgba(234,227,210,0.7);
-  display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;
-}
-.journal-email-row input{
-  background:var(--ink);
-  border:1px solid var(--line);
-  color:var(--bone);
-  padding:0.4rem 0.6rem;
-  border-radius:6px;
-  font-family:'Inter',sans-serif;
-  font-size:0.82rem;
-  flex:1;
-  min-width:180px;
-}
-.journal-send-btn{
-  margin-top:0.7rem;
+.journal-share-btn{
+  margin-top:0.9rem;
   background:var(--moss);
   border:none;
   color:var(--bone);
@@ -465,8 +448,9 @@ h1{
   padding:0.55rem 0.95rem;
   border-radius:8px;
   cursor:pointer;
+  display:none;
 }
-.journal-send-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+.journal-share-btn:disabled{ opacity:0.4; cursor:not-allowed; }
 .journal-status, .journal-size-note{
   margin-top:0.5rem;
   font-size:0.78rem;
@@ -649,10 +633,7 @@ footer{
     </div>
     <audio id="journalPlayback" class="journal-playback" controls></audio>
     <div class="journal-size-note" id="journalSizeNote"></div>
-    <div class="journal-email-row">
-      <label>Send to <input type="email" id="journalEmail" value="ds_charles@hotmail.com"></label>
-    </div>
-    <button id="journalSendBtn" class="journal-send-btn" disabled>Send recording</button>
+    <button id="journalShareBtn" class="journal-share-btn">Share recording</button>
     <div class="journal-status" id="journalStatus"></div>
   </div>
 
@@ -672,11 +653,10 @@ footer{
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
     <span id="locLine">Locating you…</span><br>
-    Last edited <span id="buildStamp">26/8/26</span> · v4.5 · build 2810d8
+    Last edited <span id="buildStamp">27/8/26</span> · v4.6 · build 02d767
   </footer>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script>
 const state = { lat:null, lng:null, weather:null, sunrise:null, sunset:null, place:null, green:null, blue:null, species:null, moon:null };
 
@@ -1682,30 +1662,39 @@ function showActivity(){
 }
 document.getElementById('reroll').addEventListener('click', showActivity);
 
-// --- Voice journal: record a note, email it as an attachment via EmailJS ---
-// No backend needed -- EmailJS lets a static site send email using a public,
-// domain-restricted key (safe to expose client-side, unlike a metered API
-// key would be). Deliberately does NOT transcribe: Firefox (David's actual
-// daily-driver browser, see CLAUDE.md) has no SpeechRecognition support at
-// all, and a paid cloud transcription key can't safely live in this repo's
-// public JS without a backend to hide it behind. The fallback is exactly
-// what David already does manually today -- email the raw recording, run it
-// through Whisper on the laptop.
+// --- Voice journal: record a note, then hand it off via Android's own share
+// sheet (or a plain download where that's not possible) -- no backend, no
+// third-party account, no size limit imposed by an email service. Where it
+// ends up (email, Obsidian, WhatsApp, Drive...) is whatever's picked in the
+// share sheet each time, not fixed by this page.
 //
-// SETUP: fill in the three values below from the EmailJS dashboard once the
-// service/template are created. The template needs a "Variable Attachment"
-// configured with a parameter name matching EMAILJS_ATTACHMENT_PARAM, and
-// its "To Email" field set to the {{to_email}} variable so the recipient
-// stays editable from this page rather than fixed in the template.
-const EMAILJS_SERVICE_ID = '';
-const EMAILJS_TEMPLATE_ID = '';
-const EMAILJS_PUBLIC_KEY = '';
-const EMAILJS_ATTACHMENT_PARAM = 'content';
-// ~24kbps mono keeps a several-minute recording well under typical email
-// attachment limits (EmailJS: no attachments at all on the Free plan,
-// 500KB on Personal, 2MB on Professional) -- check journalSizeNote against
-// whichever plan is active before assuming a longer recording will send.
-const JOURNAL_AUDIO_BITRATE = 24000;
+// Deliberately does NOT transcribe: Firefox (David's actual daily-driver
+// browser, see CLAUDE.md) has no SpeechRecognition support at all, and a
+// paid cloud transcription key can't safely live in this repo's public JS
+// without a backend to hide it behind. The fallback is exactly what David
+// already does manually today -- run the recording through Whisper on the
+// laptop.
+//
+// Real, verified constraint (checked against MDN's browser-compat-data
+// directly, not assumed, after the transcription mistake above): Firefox --
+// desktop AND Android -- does not support the `files` member of the Web
+// Share API at all, only Chrome/Edge/Samsung Internet/Safari do. Firefox
+// can share plain text, just not an attached file. So on David's actual
+// browser, `navigator.share({files:[...]})` silently isn't an option --
+// `canShare({files})` correctly reports this, and the code below falls
+// back to a plain download instead of assuming share always works. From
+// there, Android's Files app share button reaches the same destinations,
+// just one extra tap away.
+// 32kbps mono (~240KB/minute) -- generous enough for several minutes of
+// voice at reasonable quality without producing an unwieldy file, now that
+// there's no email-attachment ceiling forcing a lower bitrate.
+const JOURNAL_AUDIO_BITRATE = 32000;
+
+function extensionForMime(mimeType){
+  if(mimeType && mimeType.includes('ogg')) return 'ogg';
+  if(mimeType && mimeType.includes('webm')) return 'webm';
+  return 'audio';
+}
 
 let journalStream = null;
 let journalRecorder = null;
@@ -1771,7 +1760,7 @@ async function startJournalRecording(){
   statusEl.style.display = 'none';
   document.getElementById('journalPlayback').style.display = 'none';
   document.getElementById('journalSizeNote').style.display = 'none';
-  document.getElementById('journalSendBtn').disabled = true;
+  document.getElementById('journalShareBtn').style.display = 'none';
 }
 
 function stopJournalRecording(){
@@ -1792,18 +1781,20 @@ function onJournalRecordingStopped(){
 
   const kb = Math.round(journalBlob.size / 1024);
   const sizeNote = document.getElementById('journalSizeNote');
-  sizeNote.textContent = `Recording size: ~${kb.toLocaleString()}KB. Check this against your EmailJS plan's attachment limit before sending.`;
+  sizeNote.textContent = `Recording size: ~${kb.toLocaleString()}KB`;
   sizeNote.style.display = 'block';
 
-  const sendBtn = document.getElementById('journalSendBtn');
-  const statusEl = document.getElementById('journalStatus');
-  if(!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY){
-    sendBtn.disabled = true;
-    statusEl.textContent = "Voice journal sending isn't configured yet (EmailJS IDs missing).";
-    statusEl.style.display = 'block';
-  } else {
-    sendBtn.disabled = false;
-  }
+  // Decide the button's label up front so it's honest about what tapping it
+  // will actually do on this specific browser -- canShare({files}) is the
+  // correct feature-detection here, not a browser/UA sniff.
+  const testFile = new File([journalBlob], 'test.' + extensionForMime(journalBlob.type), { type: journalBlob.type });
+  const canNativeShare = !!(navigator.canShare && navigator.canShare({ files: [testFile] }));
+  const shareBtn = document.getElementById('journalShareBtn');
+  shareBtn.textContent = canNativeShare ? 'Share recording' : 'Save recording to device';
+  shareBtn.style.display = 'inline-block';
+  shareBtn.disabled = false;
+
+  document.getElementById('journalStatus').style.display = 'none';
 }
 
 document.getElementById('recordBtn').addEventListener('click', () => {
@@ -1814,49 +1805,49 @@ document.getElementById('recordBtn').addEventListener('click', () => {
   }
 });
 
-function journalBlobToBase64(blob){
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result.split(',')[1]);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+function downloadJournalRecording(file){
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = file.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  const statusEl = document.getElementById('journalStatus');
+  statusEl.textContent = 'Saved to your device -- open it from Files to share or email it.';
+  statusEl.style.display = 'block';
 }
 
-document.getElementById('journalSendBtn').addEventListener('click', async () => {
+async function shareJournalRecording(){
   if(!journalBlob) return;
-  const email = document.getElementById('journalEmail').value.trim();
   const statusEl = document.getElementById('journalStatus');
-  const sendBtn = document.getElementById('journalSendBtn');
-  if(!email){
-    statusEl.textContent = 'Enter an email address first.';
-    statusEl.style.display = 'block';
-    return;
+  const now = new Date();
+  const pad = n => n.toString().padStart(2,'0');
+  const stamp = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+  const ext = extensionForMime(journalBlob.type);
+  const filename = `field-notes-voice-journal-${stamp}.${ext}`;
+  const file = new File([journalBlob], filename, { type: journalBlob.type });
+
+  if(navigator.canShare && navigator.canShare({ files: [file] })){
+    try{
+      await navigator.share({
+        files: [file],
+        title: 'Field Notes voice journal',
+        text: now.toLocaleString([], { weekday:'long', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' })
+      });
+      statusEl.textContent = 'Shared.';
+      statusEl.style.display = 'block';
+      return;
+    }catch(e){
+      if(e && e.name === 'AbortError') return; // user cancelled the share sheet, not an error
+      console.error('navigator.share failed, falling back to download', e);
+    }
   }
-  if(!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY){
-    statusEl.textContent = "Voice journal sending isn't configured yet (EmailJS IDs missing).";
-    statusEl.style.display = 'block';
-    return;
-  }
-  statusEl.textContent = 'Sending…';
-  statusEl.style.display = 'block';
-  sendBtn.disabled = true;
-  try{
-    const base64 = await journalBlobToBase64(journalBlob);
-    const now = new Date();
-    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-      to_email: email,
-      entry_date: now.toLocaleString([], { weekday:'long', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }),
-      [EMAILJS_ATTACHMENT_PARAM]: base64
-    }, EMAILJS_PUBLIC_KEY);
-    statusEl.textContent = 'Sent.';
-  }catch(e){
-    console.error('journal send failed', e);
-    statusEl.textContent = 'Send failed: ' + (e && e.text ? e.text : 'network error');
-  }finally{
-    sendBtn.disabled = false;
-  }
-});
+  downloadJournalRecording(file);
+}
+
+document.getElementById('journalShareBtn').addEventListener('click', shareJournalRecording);
 
 function renderGreenspaceList(userLat, userLng, list){
   if(!list || !list.length) return;

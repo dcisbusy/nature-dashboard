@@ -455,44 +455,55 @@ no way for a person to know that had happened. `showUpdateBanner()` is duplicate
 
 ## Voice journal (`nature-dashboard.html` only)
 
-- Record a note (`MediaRecorder`), play it back, email it as an attachment via **EmailJS**
-  — no backend needed. EmailJS is specifically designed for this: its Public Key is meant
-  to be exposed in client-side code (domain-restrictable, rate-limited), unlike a metered
-  API key. Loaded via `<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/...">`.
+- Record a note (`MediaRecorder`), play it back, then hand it off via **Android's native
+  share sheet** (`navigator.share({files:[...]})`) where that's supported, falling back to
+  a plain browser **download** where it isn't. No backend, no third-party account, no
+  email-service size ceiling — wherever the recording ends up (email, Obsidian, WhatsApp,
+  Drive...) is whatever the person picks in the share sheet (or, on the download path,
+  whatever they pick from their Files app afterward), not fixed by this page.
+- **Previously used EmailJS instead** (send the recording as an email attachment directly
+  from the page) — replaced at the user's request after finding EmailJS's attachment
+  limits too restrictive for a satisfying recording length (Free plan: no attachments at
+  all; Personal: 500KB; Professional: 2MB — verified against EmailJS's own pricing page).
+  If EmailJS-based sending is ever wanted again, that implementation is in git history
+  (the commit that introduced the voice journal, and the one right after it that reverted
+  to share/download).
 - **Deliberately does not transcribe.** David's actual daily-driver browser is Firefox
   (see top of this file), which has **no `SpeechRecognition` support at all** — the
   free/keyless browser-native transcription path doesn't exist for him. A paid cloud STT
   API (Whisper etc.) would need its key hidden behind a small serverless proxy to be safe
-  in a public static site, which is a real architecture change, not yet built. Current
-  design: email the raw recording, and the fallback is exactly what David already does
+  in a public static site, which is a real architecture change, not built. Current design:
+  share/download the raw recording, and the fallback is exactly what David already does
   manually — run it through Whisper himself on his laptop. Desktop Whisper reads
   Ogg/Opus or WebM/Opus fine via ffmpeg, so no format conversion is needed either way.
-- **Setup required before this actually sends anything**: `EMAILJS_SERVICE_ID`,
-  `EMAILJS_TEMPLATE_ID`, and `EMAILJS_PUBLIC_KEY` near the top of the voice journal JS are
-  blank placeholders. The Send button stays disabled and shows "isn't configured yet"
-  until real values are filled in. The EmailJS template needs a **Variable Attachment**
-  configured with a parameter name matching `EMAILJS_ATTACHMENT_PARAM` (currently
-  `'content'`), and its "To Email" field set to the `{{to_email}}` variable — not a fixed
-  address — so the recipient stays editable from the page rather than locked at the
-  template level.
-- **Recording bitrate is deliberately low** (`JOURNAL_AUDIO_BITRATE = 24000`, ~24kbps
-  mono) specifically because EmailJS's attachment limits are tight and plan-dependent:
-  **no attachments at all on the Free plan**, 500KB on Personal, 2MB on Professional
-  (verified against EmailJS's own pricing page while scoping this, not assumed). The page
-  shows the recording's actual size after stopping so it can be checked against whatever
-  plan is active before attempting to send — there's no automatic enforcement of a plan's
-  specific limit since that isn't knowable from the client side.
+- **Real, verified constraint that shaped this feature's design (checked against MDN's
+  browser-compat-data directly, not assumed)**: Firefox — desktop *and* Android, not just
+  one — does not support the `files` member of the Web Share API at all. Only
+  Chrome/Edge/Samsung Internet/Safari can share an actual file this way; Firefox can only
+  share plain text/URLs. This was caught *before* shipping, specifically because the
+  previous transcription mistake (assuming a Chrome capability existed in Firefox) made it
+  worth double-checking rather than assuming "share" would just work everywhere. The code
+  feature-detects via `navigator.canShare({files:[file]})` rather than a UA sniff or
+  assuming success — on Firefox this correctly evaluates false and the button falls back
+  to `downloadJournalRecording()`, labelled "Save recording to device" instead of "Share
+  recording" so the button is honest about what it'll actually do before it's tapped.
+- **Recording bitrate raised to 32kbps mono** (`JOURNAL_AUDIO_BITRATE`) now that there's no
+  email-attachment ceiling forcing it low — roughly 240KB/minute, generous for several
+  minutes of voice at reasonable quality without an unwieldy file size.
 - `pickJournalMimeType()` explicitly probes for a supported type rather than assuming one:
   Firefox's `MediaRecorder` only produces Ogg/Opus for audio, Chrome/Android prefers
-  WebM/Opus. Don't hardcode either.
-- `api.emailjs.com` is in `sw.js`'s `isLiveData` allowlist for the same reason the Overpass
-  mirrors are: the send call is a POST, and a POST falling into the cache-first branch by
-  omission throws on `cache.put()` — see the Overpass bug entry above. Don't remove it.
-- Not yet tested against a real recording end-to-end (this environment's browser sandbox
-  blocks microphone access, confirmed while building this — `getUserMedia` correctly
-  rejects with `NotAllowedError` and the page shows "Microphone permission denied or
-  unavailable" rather than breaking, but the actual record → attach → send path needs a
-  real device and a configured EmailJS template to verify for real).
+  WebM/Opus. `extensionForMime()` picks the download filename's extension off the same
+  detected mimeType for the same reason — don't hardcode either.
+- Downloaded filename format: `field-notes-voice-journal-YYYYMMDD-HHMM.<ext>`, built from
+  local time components (not `toISOString()`, which would be UTC and less meaningful for
+  "when did I record this" at a glance).
+- Verified live (with a synthetic Blob standing in for a real recording, since this
+  environment's browser sandbox blocks microphone access and has no `navigator.canShare`
+  at all): the share/download decision correctly falls back to download when file-sharing
+  isn't available, the button label and status text update correctly, and the generated
+  filename/extension match the recording's actual mimeType. Not yet verified against a
+  real recording on a real device in either browser (Firefox → should download; Chrome →
+  should open the native share sheet) — worth confirming both paths once tested for real.
 
 ## Open items / explicitly deferred
 
