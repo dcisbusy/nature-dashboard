@@ -653,7 +653,7 @@ footer{
     Data: Open-Meteo · OpenStreetMap (Overpass) · iNaturalist · Wikipedia · Woodland Trust · RSPB · PFAF · BigDataCloud reverse geocoding.<br>
     Nothing here is stored — everything refetches on load.<br>
     <span id="locLine">Locating you…</span><br>
-    Last edited <span id="buildStamp">27/8/26</span> · v4.6 · build 02d767
+    Last edited <span id="buildStamp">27/8/26</span> · v4.6.1 · build aabc28
   </footer>
 </div>
 
@@ -1733,7 +1733,19 @@ async function startJournalRecording(){
     journalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   }catch(e){
     console.error('getUserMedia failed', e);
-    statusEl.textContent = 'Microphone permission denied or unavailable.';
+    // The in-page permission prompt doesn't always appear (confirmed on a
+    // real Android/Firefox device -- it silently failed with no prompt
+    // shown at all until the mic permission was granted manually in
+    // Android's own app settings), so NotAllowedError specifically gets a
+    // pointer to Settings rather than just "denied", which implies a
+    // prompt the person may never have actually seen.
+    if(e && e.name === 'NotAllowedError'){
+      statusEl.textContent = "Microphone blocked. On Android: Settings > Apps > [your browser] > Permissions > Microphone, then try again.";
+    } else if(e && e.name === 'NotFoundError'){
+      statusEl.textContent = 'No microphone found on this device.';
+    } else {
+      statusEl.textContent = 'Microphone unavailable: ' + (e && e.message ? e.message : 'unknown error');
+    }
     statusEl.style.display = 'block';
     return;
   }

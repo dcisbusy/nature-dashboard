@@ -501,9 +501,20 @@ no way for a person to know that had happened. `showUpdateBanner()` is duplicate
   environment's browser sandbox blocks microphone access and has no `navigator.canShare`
   at all): the share/download decision correctly falls back to download when file-sharing
   isn't available, the button label and status text update correctly, and the generated
-  filename/extension match the recording's actual mimeType. Not yet verified against a
-  real recording on a real device in either browser (Firefox → should download; Chrome →
-  should open the native share sheet) — worth confirming both paths once tested for real.
+  filename/extension match the recording's actual mimeType.
+- **Confirmed working on a real device (Firefox for Android)**: record → download → the
+  file is genuinely retrievable and shareable from there, matching the fallback design
+  above exactly as intended.
+- **Real-device finding**: on first use, Firefox didn't show an in-page microphone
+  permission prompt at all — `getUserMedia()` just failed silently with `NotAllowedError`
+  until microphone access was granted manually via Android's own Settings > Apps >
+  [browser] > Permissions > Microphone. Not a code bug (nothing to fix client-side — the
+  browser controls whether/when it shows its own prompt), but worth knowing before
+  assuming a bug report of "record button does nothing" is actually a bug: check Android's
+  app-level permission for the browser first, same category of gotcha as the GPS
+  "Approximate location" note elsewhere in this file. `startJournalRecording()`'s
+  `NotAllowedError` branch now points directly at this Settings path instead of a generic
+  "permission denied" message, specifically because of this.
 
 ## Open items / explicitly deferred
 
